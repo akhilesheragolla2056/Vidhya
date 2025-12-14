@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #3B5BDB;
+  --primary-light: #5C7CFA;
+  --primary-dark: #364FC7;
+  --accent-cyan: #7DD3E8;
+  --accent-pink: #FFB5C5;
+  --accent-orange: #F5A623;
+  --accent-yellow: #FFD93D;
+  --accent-green: #2ECC71;
+  --accent-red: #FF6B6B;
+  --surface-light: #E8F4FD;
+  --surface-white: #FFFFFF;
+  --text-primary: #1A1A2E;
+  --text-secondary: #64748B;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--surface-light);
+  color: var(--text-primary);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display font-semibold tracking-tight;
+  }
+  
+  h1 {
+    @apply text-4xl md:text-5xl lg:text-6xl;
+  }
+  
+  h2 {
+    @apply text-3xl md:text-4xl;
+  }
+  
+  h3 {
+    @apply text-xl md:text-2xl;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary text-white font-semibold rounded-full transition-all duration-300 hover:bg-primary-dark hover:shadow-lg transform hover:-translate-y-0.5;
+  }
+  
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-text-primary font-medium rounded-full border border-gray-200 transition-all duration-300 hover:border-primary hover:text-primary;
+  }
+  
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-transparent text-primary font-medium rounded-full border-2 border-primary transition-all duration-300 hover:bg-primary hover:text-white;
+  }
+  
+  .card {
+    @apply bg-white rounded-2xl shadow-md p-6 transition-all duration-300 hover:shadow-lg;
+  }
+  
+  .card-feature {
+    @apply rounded-2xl p-8 min-h-[280px] relative overflow-hidden;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200;
+  }
+  
+  .nav-link {
+    @apply text-text-primary font-medium hover:text-primary transition-colors duration-200 flex items-center gap-1;
+  }
+  
+  .section-padding {
+    @apply py-16 md:py-24 px-4 md:px-8;
+  }
+  
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 md:px-8;
+  }
+
+  .stat-number {
+    @apply text-4xl md:text-5xl font-bold text-text-primary;
+  }
+  
+  .stat-label {
+    @apply text-sm text-text-secondary font-medium;
+  }
+  
+  .faq-item {
+    @apply bg-primary/90 text-white rounded-xl px-6 py-4 cursor-pointer transition-all duration-300 hover:bg-primary;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent;
+  }
+}
+
+.dyslexia-mode {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', cursive, sans-serif !important;
+  letter-spacing: 0.1em;
+  word-spacing: 0.2em;
+  line-height: 2;
+}
+
+.high-contrast {
+  filter: contrast(1.4);
+}
+
+.focus-mode .non-essential {
+  opacity: 0.3;
+}
+
+.large-text {
+  font-size: 120% !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3B5BDB;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #364FC7;
+}
+

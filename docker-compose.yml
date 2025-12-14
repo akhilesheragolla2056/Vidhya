@@ -1,0 +1,71 @@
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7
+    container_name: lumina-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-lumina123}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - lumina-network
+
+  # Redis Cache (optional)
+  redis:
+    image: redis:alpine
+    container_name: lumina-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - lumina-network
+
+  # Backend API
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: lumina-server
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:${MONGO_PASSWORD:-lumina123}@mongodb:27017/lumina?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    ports:
+      - "5000:5000"
+    networks:
+      - lumina-network
+
+  # Frontend Client
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: lumina-client
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "80:80"
+    networks:
+      - lumina-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  lumina-network:
+    driver: bridge
