@@ -1,21 +1,6 @@
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
 // Load environment variables FIRST before importing routes
 import dotenv from 'dotenv'
-const envPath = join(__dirname, '..', '.env')
-console.log('Loading .env from:', envPath)
-const result = dotenv.config({ path: envPath })
-console.log('Dotenv config result:', result.error ? `Error: ${result.error}` : 'Success')
-if (result.parsed) {
-  console.log(
-    'Loaded env keys:',
-    Object.keys(result.parsed).filter(k => k.includes('GOOGLE'))
-  )
-}
+dotenv.config()
 
 import express from 'express'
 import cors from 'cors'
