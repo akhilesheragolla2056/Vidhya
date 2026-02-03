@@ -2,7 +2,6 @@ services:
   - type: web
     name: lumina-api
     env: node
-    plan: free
     buildCommand: cd server && npm install
     startCommand: cd server && npm start
     envVars:
@@ -27,12 +26,10 @@ services:
       - key: GEMINI_MODEL
         value: gemini-1.5-flash
 
-  - type: web
+  - type: static
     name: lumina-client
-    env: static
-    plan: free
     buildCommand: cd client && npm install && npm run build
     staticPublishPath: client/dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://lumina-api.onrender.com/api
+    routes:
+      - path: /
+        destination: /index.html
