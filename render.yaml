@@ -27,7 +27,7 @@ services:
       - key: GEMINI_MODEL
         value: gemini-1.5-flash
 
-  - type: static
+  - type: web
     name: lumina-client
     env: static
     plan: free
