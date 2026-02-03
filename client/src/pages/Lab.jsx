@@ -1,9 +1,22 @@
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment, Html } from '@react-three/drei'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-import { FlaskConical, Zap, Flame, Gem, Play, RotateCcw, Glasses, Lightbulb, CheckCircle, X } from 'lucide-react'
+import {
+  FlaskConical,
+  Zap,
+  Flame,
+  Gem,
+  Play,
+  RotateCcw,
+  Glasses,
+  Lightbulb,
+  CheckCircle,
+  X,
+} from 'lucide-react'
+import { labAPI } from '../services/api'
 
 function Beaker({ position, color = 'blue', liquid = 0.5 }) {
   return (
@@ -29,7 +42,7 @@ function Beaker({ position, color = 'blue', liquid = 0.5 }) {
 
 function Molecule({ position, type = 'water' }) {
   const colors = type === 'water' ? ['red', 'white', 'white'] : ['gray', 'white', 'white', 'white']
-  
+
   return (
     <group position={position}>
       <mesh>
@@ -57,27 +70,95 @@ function LabTable() {
 
 function Lab() {
   const { id } = useParams()
-  const [selectedExperiment, setSelectedExperiment] = useState('acid-base')
+  const subject = (id || 'chemistry').toLowerCase()
+  const [selectedExperiment, setSelectedExperiment] = useState(null)
   const [isRunning, setIsRunning] = useState(false)
   const [results, setResults] = useState(null)
 
-  const experiments = [
-    { id: 'acid-base', name: 'Acid-Base Titration', icon: FlaskConical, difficulty: 'Beginner', color: 'text-accent-cyan' },
-    { id: 'electrolysis', name: 'Water Electrolysis', icon: Zap, difficulty: 'Intermediate', color: 'text-accent-yellow' },
-    { id: 'combustion', name: 'Combustion Reactions', icon: Flame, difficulty: 'Advanced', color: 'text-accent-orange' },
-    { id: 'crystal', name: 'Crystal Growing', icon: Gem, difficulty: 'Beginner', color: 'text-accent-pink' },
-  ]
+  const {
+    data: experiments = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['labs', subject],
+    queryFn: async () => {
+      const res = await labAPI.getExperiments(subject)
+      return res.data?.data || []
+    },
+  })
 
-  const runExperiment = () => {
+  useEffect(() => {
+    if (experiments.length && !selectedExperiment) {
+      setSelectedExperiment(experiments[0].id)
+    }
+  }, [experiments, selectedExperiment])
+
+  const resolveIcon = icon => {
+    if (icon === '⚡') return Zap
+    if (icon === '🔥') return Flame
+    if (icon === '💎') return Gem
+    return FlaskConical
+  }
+
+  const chipColor = difficulty => {
+    if (!difficulty) return 'text-accent-cyan'
+    const level = difficulty.toLowerCase()
+    if (level === 'beginner') return 'text-accent-cyan'
+    if (level === 'intermediate') return 'text-accent-yellow'
+    return 'text-accent-orange'
+  }
+
+  const activeExperiment = experiments.find(exp => exp.id === selectedExperiment)
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-900">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  if (isError || experiments.length === 0) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-900 text-white">
+        <div className="text-center space-y-3">
+          <p className="text-lg">No experiments available for this subject yet.</p>
+          <p className="text-sm text-gray-400">Try selecting another subject.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const runExperiment = async () => {
+    if (!activeExperiment) return
     setIsRunning(true)
-    setTimeout(() => {
-      setIsRunning(false)
-      setResults({
+    setResults(null)
+
+    setTimeout(async () => {
+      const observation =
+        activeExperiment.observations?.[0] ||
+        activeExperiment.objectives?.[0] ||
+        'Experiment completed.'
+
+      const computed = {
         success: true,
-        observation: 'The solution changed from colorless to pink, indicating the endpoint of titration.',
-        pH: 7.0,
-      })
-    }, 3000)
+        observation,
+        pH: activeExperiment.estimatedPH || 7.0,
+      }
+
+      setIsRunning(false)
+      setResults(computed)
+
+      try {
+        await labAPI.saveProgress(subject, activeExperiment.id, {
+          state: 'completed',
+          observations: observation,
+          completedAt: new Date().toISOString(),
+        })
+      } catch (error) {
+        console.error('Failed to save lab progress', error)
+      }
+    }, 2000)
   }
 
   return (
@@ -100,8 +181,9 @@ function Lab() {
             Available Experiments
           </h2>
           <div className="space-y-2">
-            {experiments.map((exp) => {
-              const Icon = exp.icon
+            {experiments.map(exp => {
+              const Icon = resolveIcon(exp.icon)
+              const color = chipColor(exp.difficulty)
               return (
                 <button
                   key={exp.id}
@@ -113,8 +195,15 @@ function Lab() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedExperiment === exp.id ? 'bg-white/20' : 'bg-gray-600'}`}>
-                      <Icon size={20} className={selectedExperiment === exp.id ? 'text-white' : exp.color} />
+                    <div
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        selectedExperiment === exp.id ? 'bg-white/20' : 'bg-gray-600'
+                      }`}
+                    >
+                      <Icon
+                        size={20}
+                        className={selectedExperiment === exp.id ? 'text-white' : color}
+                      />
                     </div>
                     <div>
                       <p className="font-medium text-sm">{exp.name}</p>
@@ -153,29 +242,21 @@ function Lab() {
       </div>
 
       <div className="flex-1 relative">
-        <Canvas
-          camera={{ position: [3, 2, 3], fov: 50 }}
-          shadows
-        >
+        <Canvas camera={{ position: [3, 2, 3], fov: 50 }} shadows>
           <Suspense fallback={null}>
             <ambientLight intensity={0.5} />
             <directionalLight position={[5, 5, 5]} intensity={1} castShadow />
             <pointLight position={[-5, 5, -5]} intensity={0.5} />
-            
+
             <LabTable />
-            
+
             <Beaker position={[-1, 0, 0]} color="#ff6b6b" liquid={0.6} />
             <Beaker position={[0, 0, 0]} color="#4ecdc4" liquid={0.8} />
             <Beaker position={[1, 0, 0]} color="#ffe66d" liquid={0.4} />
-            
+
             <Molecule position={[0, 1, 0]} type="water" />
-            
-            <OrbitControls 
-              enablePan={true}
-              enableZoom={true}
-              minDistance={2}
-              maxDistance={10}
-            />
+
+            <OrbitControls enablePan={true} enableZoom={true} minDistance={2} maxDistance={10} />
             <Environment preset="studio" />
           </Suspense>
         </Canvas>
@@ -195,10 +276,12 @@ function Lab() {
                 <h3 className="font-semibold text-text-primary">Experiment Complete!</h3>
                 <p className="text-sm text-text-secondary mt-1">{results.observation}</p>
                 <div className="flex gap-3 mt-3">
-                  <span className="px-3 py-1.5 bg-surface-light rounded-lg text-sm font-medium">pH: {results.pH}</span>
+                  <span className="px-3 py-1.5 bg-surface-light rounded-lg text-sm font-medium">
+                    pH: {results.pH}
+                  </span>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setResults(null)}
                 className="text-text-muted hover:text-text-primary transition-colors"
               >

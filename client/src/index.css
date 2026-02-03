@@ -1,23 +1,51 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Poppins:wght@600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --primary: #3B5BDB;
-  --primary-light: #5C7CFA;
-  --primary-dark: #364FC7;
-  --accent-cyan: #7DD3E8;
-  --accent-pink: #FFB5C5;
-  --accent-orange: #F5A623;
-  --accent-yellow: #FFD93D;
-  --accent-green: #2ECC71;
-  --accent-red: #FF6B6B;
-  --surface-light: #E8F4FD;
-  --surface-white: #FFFFFF;
-  --text-primary: #1A1A2E;
-  --text-secondary: #64748B;
+  /* Primary Brand Colors - Professional Purple */
+  --primary: #5624d0;
+  --primary-light: #7c4fe0;
+  --primary-dark: #401b9c;
+  --primary-hover: #4a1fb8;
+
+  /* Accent Colors */
+  --accent-cyan: #06b6d4;
+  --accent-teal: #14b8a6;
+  --accent-orange: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-green: #22c55e;
+  --accent-purple: #a855f7;
+
+  /* Neutral Colors - Modern Gray Scale */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Surface Colors */
+  --surface-light: #ffffff;
+  --surface-bg: #f7f9fa;
+  --surface-hover: #f5f5f5;
+
+  /* Text Colors */
+  --text-primary: #1c1d1f;
+  --text-secondary: #6a6f73;
+  --text-muted: #9ca3af;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
 }
 
 * {
@@ -31,8 +59,14 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: var(--surface-light);
+  font-family:
+    'Inter',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  background-color: var(--surface-bg);
   color: var(--text-primary);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -40,70 +74,129 @@ body {
 }
 
 @layer base {
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-display font-semibold tracking-tight;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-semibold tracking-tight;
   }
-  
+
   h1 {
     @apply text-4xl md:text-5xl lg:text-6xl;
+    font-family: 'Poppins', sans-serif;
   }
-  
+
   h2 {
     @apply text-3xl md:text-4xl;
+    font-family: 'Poppins', sans-serif;
   }
-  
+
   h3 {
     @apply text-xl md:text-2xl;
+  }
+
+  h4 {
+    @apply text-lg md:text-xl;
   }
 }
 
 @layer components {
+  /* Professional Buttons - Udemy/Coursera Style */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary text-white font-semibold rounded-full transition-all duration-300 hover:bg-primary-dark hover:shadow-lg transform hover:-translate-y-0.5;
-  }
-  
-  .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-text-primary font-medium rounded-full border border-gray-200 transition-all duration-300 hover:border-primary hover:text-primary;
-  }
-  
-  .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-transparent text-primary font-medium rounded-full border-2 border-primary transition-all duration-300 hover:bg-primary hover:text-white;
-  }
-  
-  .card {
-    @apply bg-white rounded-2xl shadow-md p-6 transition-all duration-300 hover:shadow-lg;
-  }
-  
-  .card-feature {
-    @apply rounded-2xl p-8 min-h-[280px] relative overflow-hidden;
-  }
-  
-  .input-field {
-    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200;
-  }
-  
-  .nav-link {
-    @apply text-text-primary font-medium hover:text-primary transition-colors duration-200 flex items-center gap-1;
-  }
-  
-  .section-padding {
-    @apply py-16 md:py-24 px-4 md:px-8;
-  }
-  
-  .container-custom {
-    @apply max-w-7xl mx-auto px-4 md:px-8;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white font-bold text-sm rounded-md transition-all duration-200 hover:bg-primary-hover hover:shadow-lg active:scale-95;
   }
 
-  .stat-number {
-    @apply text-4xl md:text-5xl font-bold text-text-primary;
+  .btn-primary-lg {
+    @apply inline-flex items-center justify-center gap-2 px-8 py-4 bg-primary text-white font-bold text-base rounded-md transition-all duration-200 hover:bg-primary-hover hover:shadow-lg active:scale-95;
   }
-  
-  .stat-label {
-    @apply text-sm text-text-secondary font-medium;
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-text-primary font-bold text-sm rounded-md border-2 border-gray-900 transition-all duration-200 hover:bg-gray-50 active:scale-95;
   }
-  
-  .faq-item {
-    @apply bg-primary/90 text-white rounded-xl px-6 py-4 cursor-pointer transition-all duration-300 hover:bg-primary;
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 bg-transparent text-primary font-bold text-sm rounded-md border-2 border-primary transition-all duration-200 hover:bg-primary hover:text-white active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 bg-transparent text-text-primary font-semibold text-sm rounded-md transition-colors duration-200 hover:bg-gray-100;
+  }
+
+  /* Professional Cards */
+  .card {
+    @apply bg-white rounded-lg border border-gray-200 shadow-sm p-6 transition-all duration-200 hover:shadow-md;
+  }
+
+  .card-course {
+    @apply bg-white rounded-lg border border-gray-200 overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+  }
+
+  .card-feature {
+    @apply bg-white rounded-xl p-8 shadow-sm border border-gray-100 transition-all duration-300 hover:shadow-md;
+  }
+
+  /* Input Fields - Clean Professional Style */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-md text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200;
+  }
+
+  .input-search {
+    @apply w-full px-5 py-3.5 bg-white border-2 border-gray-800 rounded-full text-text-primary placeholder-text-secondary font-medium focus:outline-none focus:border-primary transition-all duration-200;
+  }
+
+  /* Navigation Link */
+  .nav-link {
+    @apply text-text-primary font-medium hover:text-primary transition-colors duration-200 cursor-pointer;
+  }
+
+  /* Container & Layout */
+  .section-padding {
+    @apply py-12 md:py-20 px-4 md:px-8;
+  }
+
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 md:px-6 lg:px-8;
+  }
+
+  /* Stats & Badges */
+  .stat-card {
+    @apply text-center p-6 bg-white rounded-lg border border-gray-100 shadow-sm;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 text-xs font-bold rounded-full;
+  }
+
+  .badge-primary {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .badge-success {
+    @apply bg-green-100 text-green-700;
+  }
+
+  .badge-warning {
+    @apply bg-amber-100 text-amber-700;
+  }
+
+  .badge-info {
+    @apply bg-blue-100 text-blue-700;
+  }
+
+  /* Course Progress Bar */
+  .progress-bar {
+    @apply w-full h-1.5 bg-gray-200 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full bg-primary rounded-full transition-all duration-500;
+  }
+
+  /* Rating Stars */
+  .rating-display {
+    @apply flex items-center gap-1 text-amber-400;
   }
 }
 
@@ -111,8 +204,27 @@ body {
   .text-gradient {
     @apply bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent;
   }
+
+  .text-gradient-purple {
+    @apply bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent;
+  }
+
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-primary via-primary-dark to-primary;
+  }
+
+  .shadow-hover {
+    transition: box-shadow 0.2s ease-in-out;
+  }
+
+  .shadow-hover:hover {
+    box-shadow:
+      0 20px 25px -5px rgb(0 0 0 / 0.1),
+      0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
 }
 
+/* Accessibility Features */
 .dyslexia-mode {
   font-family: 'OpenDyslexic', 'Comic Sans MS', cursive, sans-serif !important;
   letter-spacing: 0.1em;
@@ -132,6 +244,28 @@ body {
   font-size: 120% !important;
 }
 
+/* Scrollbar Styling - Professional Look */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--gray-100);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--gray-300);
+  border-radius: 10px;
+  border: 2px solid var(--gray-100);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-400);
+}
+
+/* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -141,20 +275,33 @@ body {
   }
 }
 
-::-webkit-scrollbar {
-  width: 8px;
+/* Custom Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
+.skeleton {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(to right, #f0f0f0 4%, #e0e0e0 25%, #f0f0f0 36%);
+  background-size: 1000px 100%;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #3B5BDB;
-  border-radius: 4px;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #364FC7;
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
 }
-

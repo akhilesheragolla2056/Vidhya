@@ -2,39 +2,40 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '../../services/api'
 
 // Async thunks
-export const login = createAsyncThunk(
-  'user/login',
-  async (credentials, { rejectWithValue }) => {
-    try {
-      const response = await api.post('/auth/login', credentials)
-      localStorage.setItem('token', response.data.token)
-      return response.data.user
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Login failed')
-    }
+export const login = createAsyncThunk('user/login', async (credentials, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/auth/login', credentials)
+    localStorage.setItem('token', response.data.token)
+    return response.data.user
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Login failed')
   }
-)
+})
 
-export const signup = createAsyncThunk(
-  'user/signup',
-  async (userData, { rejectWithValue }) => {
-    try {
-      const response = await api.post('/auth/signup', userData)
-      localStorage.setItem('token', response.data.token)
-      return response.data.user
-    } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Signup failed')
-    }
+export const signup = createAsyncThunk('user/signup', async (userData, { rejectWithValue }) => {
+  try {
+    const response = await api.post('/auth/signup', userData)
+    localStorage.setItem('token', response.data.token)
+    return response.data.user
+  } catch (error) {
+    return rejectWithValue(error.response?.data?.message || 'Signup failed')
   }
-)
+})
 
 export const fetchProfile = createAsyncThunk(
   'user/fetchProfile',
   async (_, { rejectWithValue }) => {
     try {
+      console.log('fetchProfile: calling GET /auth/profile')
       const response = await api.get('/auth/profile')
-      return response.data
+      console.log('fetchProfile response:', response)
+      // Server response has structure: { success: true, ...userData }
+      // We need to extract the user object (everything except success field)
+      const { success, ...userData } = response.data
+      console.log('Extracted user data:', userData)
+      return userData
     } catch (error) {
+      console.error('fetchProfile error:', error)
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch profile')
     }
   }
@@ -64,14 +65,22 @@ const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    logout: (state) => {
+    logout: state => {
       localStorage.removeItem('token')
       state.currentUser = null
       state.isAuthenticated = false
       state.error = null
     },
-    clearError: (state) => {
+    clearError: state => {
       state.error = null
+    },
+    loginSuccess: (state, action) => {
+      state.isAuthenticated = true
+      state.isLoading = false
+      state.error = null
+      if (action?.payload) {
+        state.currentUser = action.payload
+      }
     },
     updateLearningProfile: (state, action) => {
       state.learningProfile = { ...state.learningProfile, ...action.payload }
@@ -90,10 +99,10 @@ const userSlice = createSlice({
       }
     },
   },
-  extraReducers: (builder) => {
+  extraReducers: builder => {
     builder
       // Login
-      .addCase(login.pending, (state) => {
+      .addCase(login.pending, state => {
         state.isLoading = true
         state.error = null
       })
@@ -107,7 +116,7 @@ const userSlice = createSlice({
         state.error = action.payload
       })
       // Signup
-      .addCase(signup.pending, (state) => {
+      .addCase(signup.pending, state => {
         state.isLoading = true
         state.error = null
       })
@@ -122,11 +131,24 @@ const userSlice = createSlice({
       })
       // Fetch Profile
       .addCase(fetchProfile.fulfilled, (state, action) => {
+        state.isLoading = false
         state.currentUser = action.payload
         state.isAuthenticated = true
+      })
+      .addCase(fetchProfile.pending, state => {
+        state.isLoading = true
+        state.error = null
+      })
+      .addCase(fetchProfile.rejected, (state, action) => {
+        state.isLoading = false
+        state.error = action.payload
+        state.currentUser = null
+        state.isAuthenticated = false
+        localStorage.removeItem('token')
       })
   },
 })
 
-export const { logout, clearError, updateLearningProfile, addXP, addBadge } = userSlice.actions
+export const { logout, clearError, loginSuccess, updateLearningProfile, addXP, addBadge } =
+  userSlice.actions
 export default userSlice.reducer

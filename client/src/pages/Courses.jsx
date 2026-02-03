@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { 
-  Clock, 
-  Search, 
-  BookOpen, 
-  Users, 
+import { useQuery } from '@tanstack/react-query'
+import {
+  Clock,
+  Search,
+  BookOpen,
+  Users,
   Star,
   ArrowRight,
   Sparkles,
@@ -17,149 +18,44 @@ import {
   TrendingUp,
   Filter,
   Grid3X3,
-  LayoutList
+  LayoutList,
 } from 'lucide-react'
+import coursesAPI from '../services/api'
+const categoryMeta = {
+  'AI/ML': { icon: Brain, color: 'from-indigo-500 to-blue-500' },
+  Programming: { icon: Code, color: 'from-blue-500 to-cyan-500' },
+  'Data Science': { icon: TrendingUp, color: 'from-purple-500 to-indigo-500' },
+  'Web Development': { icon: Code, color: 'from-amber-500 to-orange-500' },
+  Languages: { icon: Languages, color: 'from-red-500 to-orange-500' },
+  'Personal Development': { icon: Heart, color: 'from-pink-500 to-rose-500' },
+  'Professional Skills': { icon: Briefcase, color: 'from-emerald-500 to-teal-500' },
+  Wellness: { icon: Heart, color: 'from-cyan-500 to-blue-500' },
+}
 
-// Course Data
-const coursesData = [
-  {
-    id: 1,
-    title: 'Principles of Happiness',
-    description: 'Explore the fundamental principles of achieving and maintaining happiness through psychology, practical strategies, and mindfulness techniques.',
-    level: 'Beginner',
-    duration: '4 weeks',
-    category: 'Personal Development',
-    icon: Heart,
-    lessons: 12,
-    students: 2840,
-    rating: 4.8,
-    color: 'from-pink-500 to-rose-500',
-    featured: true,
-  },
-  {
-    id: 2,
-    title: 'Introduction to Machine Learning',
-    description: 'A comprehensive introduction to machine learning fundamentals, algorithms, and real-world applications. Perfect for beginners starting their AI journey.',
-    level: 'Beginner',
-    duration: '8 weeks',
-    category: 'AI/ML',
-    icon: Brain,
-    lessons: 34,
-    students: 5620,
-    rating: 4.9,
-    color: 'from-violet-500 to-purple-500',
-    featured: true,
-  },
-  {
-    id: 3,
-    title: 'Python Programming Fundamentals',
-    description: 'Learn Python from scratch with hands-on projects. Cover variables, data types, control flow, functions, and object-oriented programming.',
-    level: 'Beginner',
-    duration: '6 weeks',
-    category: 'Programming',
-    icon: Code,
-    lessons: 28,
-    students: 8930,
-    rating: 4.9,
-    color: 'from-blue-500 to-cyan-500',
-    featured: true,
-  },
-  {
-    id: 4,
-    title: 'Intermediate French Grammar',
-    description: 'Deepen your French knowledge with intermediate grammar topics. Enhance writing and speaking skills for greater fluency.',
-    level: 'Intermediate',
-    duration: '6 weeks',
-    category: 'Languages',
-    icon: Languages,
-    lessons: 24,
-    students: 1560,
-    rating: 4.7,
-    color: 'from-red-500 to-orange-500',
-  },
-  {
-    id: 5,
-    title: 'Productivity Mastery',
-    description: 'Master productivity techniques and digital tools to effectively manage tasks and time in the modern workplace.',
-    level: 'Beginner',
-    duration: '3 weeks',
-    category: 'Professional Skills',
-    icon: Briefcase,
-    lessons: 15,
-    students: 3420,
-    rating: 4.6,
-    color: 'from-emerald-500 to-teal-500',
-  },
-  {
-    id: 6,
-    title: 'Mindfulness and Stress Management',
-    description: 'Practical tools and techniques for managing stress and enhancing mindfulness for professionals.',
-    level: 'Beginner',
-    duration: '4 weeks',
-    category: 'Wellness',
-    icon: Heart,
-    lessons: 16,
-    students: 2180,
-    rating: 4.8,
-    color: 'from-cyan-500 to-blue-500',
-  },
-  {
-    id: 7,
-    title: 'Data Science with Python',
-    description: 'Master data science using Python with pandas, numpy, matplotlib, and scikit-learn. Analyze datasets and build predictive models.',
-    level: 'Intermediate',
-    duration: '8 weeks',
-    category: 'Data Science',
-    icon: TrendingUp,
-    lessons: 32,
-    students: 4210,
-    rating: 4.8,
-    color: 'from-indigo-500 to-violet-500',
-  },
-  {
-    id: 8,
-    title: 'Web Development Bootcamp',
-    description: 'Comprehensive course covering HTML, CSS, JavaScript, React, and Node.js. Build responsive websites and full-stack applications.',
-    level: 'Beginner',
-    duration: '10 weeks',
-    category: 'Web Development',
-    icon: Code,
-    lessons: 48,
-    students: 7650,
-    rating: 4.9,
-    color: 'from-amber-500 to-orange-500',
-  },
-  {
-    id: 9,
-    title: 'Advanced Machine Learning',
-    description: 'Deep dive into advanced ML techniques including neural networks, deep learning, and cutting-edge algorithms.',
-    level: 'Advanced',
-    duration: '10 weeks',
-    category: 'AI/ML',
-    icon: Brain,
-    lessons: 42,
-    students: 2890,
-    rating: 4.7,
-    color: 'from-purple-500 to-pink-500',
-  },
-]
-
-const categories = [
-  'All',
-  'AI/ML',
-  'Programming',
-  'Data Science',
-  'Web Development',
-  'Languages',
-  'Personal Development',
-  'Professional Skills',
-  'Wellness',
-]
+const normalizeCourse = raw => {
+  const meta = categoryMeta[raw.category] || {}
+  return {
+    id: raw._id || raw.id,
+    title: raw.title,
+    description: raw.description,
+    level: raw.level,
+    duration: raw.duration || `${raw.modules?.length || 0} weeks`,
+    category: raw.category || 'Uncategorized',
+    lessons:
+      raw.lessonsCount || raw.modules?.reduce((acc, m) => acc + (m.lessons?.length || 0), 0) || 0,
+    students: raw.stats?.enrollments || 0,
+    rating: raw.stats?.rating || raw.rating || 0,
+    color: meta.color || 'from-primary to-accent-cyan',
+    icon: meta.icon || BookOpen,
+    featured: raw.isFeatured || false,
+  }
+}
 
 // Featured Course Card
 function FeaturedCourseCard({ course, index }) {
-  const Icon = course.icon
-  
+  const Icon = course.icon || BookOpen
+  const color = course.color || 'from-primary to-accent-cyan'
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -170,9 +66,9 @@ function FeaturedCourseCard({ course, index }) {
         to={`/courses/${course.id}`}
         className="group block relative overflow-hidden rounded-2xl bg-gradient-to-br shadow-lg hover:shadow-xl transition-all duration-300"
       >
-        <div className={`absolute inset-0 bg-gradient-to-br ${course.color} opacity-90`} />
+        <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-90`} />
         <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors" />
-        
+
         <div className="relative p-6 h-full flex flex-col">
           <div className="flex items-start justify-between mb-4">
             <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -183,15 +79,13 @@ function FeaturedCourseCard({ course, index }) {
               <span className="text-white text-sm font-medium">{course.rating}</span>
             </div>
           </div>
-          
+
           <h3 className="text-xl font-bold text-white mb-2 group-hover:underline">
             {course.title}
           </h3>
-          
-          <p className="text-white/80 text-sm mb-4 line-clamp-2 flex-1">
-            {course.description}
-          </p>
-          
+
+          <p className="text-white/80 text-sm mb-4 line-clamp-2 flex-1">{course.description}</p>
+
           <div className="flex items-center gap-4 text-white/70 text-sm">
             <span className="flex items-center gap-1">
               <BookOpen size={14} />
@@ -214,7 +108,8 @@ function FeaturedCourseCard({ course, index }) {
 
 // Regular Course Card
 function CourseCard({ course, index, viewMode }) {
-  const Icon = course.icon
+  const Icon = course.icon || BookOpen
+  const color = course.color || 'from-primary to-accent-cyan'
 
   if (viewMode === 'list') {
     return (
@@ -227,26 +122,30 @@ function CourseCard({ course, index, viewMode }) {
           to={`/courses/${course.id}`}
           className="group flex items-center gap-6 bg-white rounded-xl p-5 shadow-sm hover:shadow-md border border-gray-100 hover:border-primary/30 transition-all duration-300"
         >
-          <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${course.color} flex items-center justify-center flex-shrink-0`}>
+          <div
+            className={`w-16 h-16 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0`}
+          >
             <Icon size={28} className="text-white" />
           </div>
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-lg font-bold text-gray-900 group-hover:text-primary transition-colors truncate">
                 {course.title}
               </h3>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                course.level === 'Beginner' ? 'bg-green-100 text-green-700' :
-                course.level === 'Intermediate' ? 'bg-amber-100 text-amber-700' :
-                'bg-red-100 text-red-700'
-              }`}>
+              <span
+                className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  course.level === 'Beginner'
+                    ? 'bg-green-100 text-green-700'
+                    : course.level === 'Intermediate'
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-red-100 text-red-700'
+                }`}
+              >
                 {course.level}
               </span>
             </div>
-            <p className="text-gray-600 text-sm line-clamp-1 mb-2">
-              {course.description}
-            </p>
+            <p className="text-gray-600 text-sm line-clamp-1 mb-2">{course.description}</p>
             <div className="flex items-center gap-4 text-gray-500 text-sm">
               <span className="flex items-center gap-1">
                 <BookOpen size={14} />
@@ -262,13 +161,16 @@ function CourseCard({ course, index, viewMode }) {
               </span>
             </div>
           </div>
-          
-          <ArrowRight size={20} className="text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0" />
+
+          <ArrowRight
+            size={20}
+            className="text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all flex-shrink-0"
+          />
         </Link>
       </motion.div>
     )
   }
-  
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -279,30 +181,34 @@ function CourseCard({ course, index, viewMode }) {
         to={`/courses/${course.id}`}
         className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg border border-gray-100 hover:border-primary/30 transition-all duration-300 h-full"
       >
-        <div className={`h-2 bg-gradient-to-r ${course.color}`} />
-        
+        <div className={`h-2 bg-gradient-to-r ${color}`} />
+
         <div className="p-5">
           <div className="flex items-start justify-between mb-4">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${course.color} flex items-center justify-center`}>
+            <div
+              className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center`}
+            >
               <Icon size={24} className="text-white" />
             </div>
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-              course.level === 'Beginner' ? 'bg-green-100 text-green-700' :
-              course.level === 'Intermediate' ? 'bg-amber-100 text-amber-700' :
-              'bg-red-100 text-red-700'
-            }`}>
+            <span
+              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                course.level === 'Beginner'
+                  ? 'bg-green-100 text-green-700'
+                  : course.level === 'Intermediate'
+                    ? 'bg-amber-100 text-amber-700'
+                    : 'bg-red-100 text-red-700'
+              }`}
+            >
               {course.level}
             </span>
           </div>
-          
+
           <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-primary transition-colors line-clamp-2">
             {course.title}
           </h3>
-          
-          <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-            {course.description}
-          </p>
-          
+
+          <p className="text-gray-600 text-sm mb-4 line-clamp-3">{course.description}</p>
+
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
             <div className="flex items-center gap-3 text-gray-500 text-sm">
               <span className="flex items-center gap-1">
@@ -329,15 +235,41 @@ function Courses() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
-  
-  const featuredCourses = coursesData.filter(c => c.featured)
-  
-  const filteredCourses = coursesData.filter(course => {
-    const matchesSearch = course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+
+  // Fetch courses from API
+  const {
+    data: apiCourses,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['courses'],
+    queryFn: async () => {
+      const res = await coursesAPI.getAll()
+      return res.data?.data || []
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  })
+
+  const normalizedCourses = useMemo(() => (apiCourses || []).map(normalizeCourse), [apiCourses])
+
+  const allCourses = normalizedCourses
+
+  const categories = useMemo(
+    () => ['All', ...new Set(allCourses.map(c => c.category).filter(Boolean))],
+    [allCourses]
+  )
+
+  const featuredCourses = allCourses.filter(c => c.featured).slice(0, 3)
+
+  const filteredCourses = allCourses.filter(course => {
+    const matchesSearch =
+      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'All' || course.category === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  const noCourses = !isLoading && !isError && allCourses.length === 0
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -348,7 +280,7 @@ function Courses() {
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-white rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent-cyan rounded-full blur-3xl" />
         </div>
-        
+
         <div className="max-w-6xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -359,21 +291,23 @@ function Courses() {
               <Sparkles size={16} />
               AI-Powered Learning Experience
             </div>
-            
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">
-              Explore Our Courses
-            </h1>
+
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-4">Explore Our Courses</h1>
             <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-8">
-              Discover courses generated by AI and curated by experts. Start your learning journey today.
+              Discover courses generated by AI and curated by experts. Start your learning journey
+              today.
             </p>
-            
+
             {/* Search Bar */}
             <div className="max-w-xl mx-auto relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                size={20}
+              />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search for courses..."
                 className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white text-gray-900 placeholder-gray-500 shadow-xl focus:ring-4 focus:ring-white/30 outline-none transition-all"
               />
@@ -396,7 +330,7 @@ function Courses() {
         {/* Category Filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
           <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
+            {categories.map(category => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
@@ -410,12 +344,14 @@ function Courses() {
               </button>
             ))}
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                viewMode === 'grid'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               <Grid3X3 size={20} />
@@ -423,7 +359,9 @@ function Courses() {
             <button
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-lg transition-colors ${
-                viewMode === 'list' ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                viewMode === 'list'
+                  ? 'bg-primary text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               <LayoutList size={20} />
@@ -433,8 +371,14 @@ function Courses() {
 
         {/* Results count */}
         <p className="text-gray-600 mb-6">
-          Showing <span className="font-semibold text-gray-900">{filteredCourses.length}</span> courses
-          {selectedCategory !== 'All' && <> in <span className="font-semibold text-primary">{selectedCategory}</span></>}
+          Showing <span className="font-semibold text-gray-900">{filteredCourses.length}</span>{' '}
+          courses
+          {selectedCategory !== 'All' && (
+            <>
+              {' '}
+              in <span className="font-semibold text-primary">{selectedCategory}</span>
+            </>
+          )}
         </p>
 
         {/* Course Grid */}
@@ -473,13 +417,14 @@ function Courses() {
             <div className="absolute top-0 right-0 w-64 h-64 bg-primary rounded-full blur-3xl" />
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-accent-cyan rounded-full blur-3xl" />
           </div>
-          
+
           <div className="relative z-10">
             <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
               Can't find what you're looking for?
             </h2>
             <p className="text-gray-300 mb-8 max-w-xl mx-auto">
-              Create a custom course tailored to your learning goals with our AI-powered course generator.
+              Create a custom course tailored to your learning goals with our AI-powered course
+              generator.
             </p>
             <Link
               to="/signup"

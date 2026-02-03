@@ -1,3 +1,22 @@
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+// Load environment variables FIRST before importing routes
+import dotenv from 'dotenv'
+const envPath = join(__dirname, '..', '.env')
+console.log('Loading .env from:', envPath)
+const result = dotenv.config({ path: envPath })
+console.log('Dotenv config result:', result.error ? `Error: ${result.error}` : 'Success')
+if (result.parsed) {
+  console.log(
+    'Loaded env keys:',
+    Object.keys(result.parsed).filter(k => k.includes('GOOGLE'))
+  )
+}
+
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -5,7 +24,6 @@ import compression from 'compression'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import mongoose from 'mongoose'
-import dotenv from 'dotenv'
 import rateLimit from 'express-rate-limit'
 
 // Route imports
@@ -15,17 +33,11 @@ import aiRoutes from './routes/ai.js'
 import classroomRoutes from './routes/classrooms.js'
 import labRoutes from './routes/labs.js'
 import analyticsRoutes from './routes/analytics.js'
+import progressRoutes from './routes/progress.js'
 
 // Middleware imports
 import { errorHandler } from './middleware/errorHandler.js'
 import { authMiddleware } from './middleware/auth.js'
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-dotenv.config({ path: join(__dirname, '..', '.env') })
 
 const app = express()
 const httpServer = createServer(app)
@@ -49,10 +61,12 @@ const limiter = rateLimit({
 // Middleware
 app.use(helmet())
 app.use(compression())
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true,
-}))
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+)
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use('/api', limiter)
@@ -69,16 +83,18 @@ app.use('/api/ai', authMiddleware, aiRoutes)
 app.use('/api/classrooms', authMiddleware, classroomRoutes)
 app.use('/api/labs', labRoutes)
 app.use('/api/analytics', authMiddleware, analyticsRoutes)
+app.use('/api/progress', authMiddleware, progressRoutes)
+app.use('/api/tests', authMiddleware, progressRoutes)
 
 // Socket.IO connection handling
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   console.log('User connected:', socket.id)
 
   // Join room
   socket.on('join-room', ({ roomId, user }) => {
     socket.join(roomId)
     socket.to(roomId).emit('user-joined', { id: socket.id, ...user })
-    
+
     // Send current participants
     const room = io.sockets.adapter.rooms.get(roomId)
     if (room) {
@@ -139,14 +155,15 @@ app.use(errorHandler)
 const PORT = process.env.PORT || 5000
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/lumina'
 
-mongoose.connect(MONGODB_URI)
+mongoose
+  .connect(MONGODB_URI)
   .then(() => {
     console.log('Connected to MongoDB')
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`)
     })
   })
-  .catch((err) => {
+  .catch(err => {
     console.error('MongoDB connection error:', err)
     process.exit(1)
   })

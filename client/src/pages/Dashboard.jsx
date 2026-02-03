@@ -2,7 +2,18 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { coursesAPI, analyticsAPI } from '../services/api'
-import { BookOpen, FlaskConical, Bot, BarChart3, Flame, Zap, Trophy, Target, ArrowRight, Star, Clock, Award, TrendingUp } from 'lucide-react'
+import {
+  BookOpen,
+  FlaskConical,
+  Bot,
+  BarChart3,
+  Trophy,
+  Target,
+  ArrowRight,
+  Clock,
+  Award,
+  TrendingUp,
+} from 'lucide-react'
 
 function ProgressRing({ progress, size = 80, strokeWidth = 8 }) {
   const radius = (size - strokeWidth) / 2
@@ -38,29 +49,36 @@ function ProgressRing({ progress, size = 80, strokeWidth = 8 }) {
 
 function CourseCard({ course }) {
   return (
-    <Link 
-      to={`/courses/${course.id}`}
-      className="bg-white rounded-2xl border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all overflow-hidden group"
+    <Link
+      to={`/courses/${course.id || course._id}`}
+      className="block bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-primary/30 transition-all overflow-hidden group"
     >
-      <div className="h-36 bg-gradient-to-br from-primary to-primary-dark relative">
+      <div className="h-32 bg-gradient-to-br from-primary/10 to-accent-cyan/10 relative">
         {course.thumbnail && (
-          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
-        )}
-        <div className="absolute bottom-3 right-3 bg-white/95 px-3 py-1.5 rounded-full text-xs font-semibold text-primary">
-          {course.progress}% complete
-        </div>
-      </div>
-      <div className="p-5">
-        <h3 className="font-semibold text-text-primary mb-2 line-clamp-1 group-hover:text-primary transition-colors">{course.title}</h3>
-        <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
-          <BookOpen size={16} />
-          <span>{course.lessonsCompleted} / {course.totalLessons} lessons</span>
-        </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-gradient-to-r from-primary to-accent-cyan rounded-full transition-all duration-500"
-            style={{ width: `${course.progress}%` }}
+          <img
+            src={course.thumbnail}
+            alt={course.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
+        )}
+        {course.progress > 0 && (
+          <div className="absolute bottom-2 right-2 bg-white px-2.5 py-1 rounded-full text-xs font-bold text-primary shadow-sm">
+            {course.progress ?? 0}%
+          </div>
+        )}
+      </div>
+      <div className="p-4">
+        <h3 className="font-bold text-text-primary mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+          {course.title}
+        </h3>
+        <div className="flex items-center gap-2 text-xs text-text-secondary mb-3">
+          <BookOpen size={14} />
+          <span>
+            {course.lessonsCompleted ?? 0} / {course.totalLessons ?? 0} lessons
+          </span>
+        </div>
+        <div className="progress-bar">
+          <div className="progress-fill" style={{ width: `${course.progress ?? 0}%` }} />
         </div>
       </div>
     </Link>
@@ -69,54 +87,67 @@ function CourseCard({ course }) {
 
 function QuickAction({ icon: Icon, label, to, color }) {
   const colorClasses = {
-    primary: 'bg-primary hover:bg-primary-dark',
-    cyan: 'bg-accent-cyan hover:bg-accent-cyan/80',
-    pink: 'bg-accent-pink hover:bg-accent-pink/80',
-    orange: 'bg-accent-orange hover:bg-accent-orange/80',
+    primary: 'from-primary to-primary-dark',
+    cyan: 'from-cyan-500 to-cyan-600',
+    pink: 'from-pink-500 to-pink-600',
+    orange: 'from-orange-500 to-orange-600',
   }
 
   return (
     <Link
       to={to}
-      className={`flex flex-col items-center p-5 rounded-2xl ${colorClasses[color]} transition-all group`}
+      className={`flex flex-col items-center p-4 rounded-lg bg-gradient-to-br ${colorClasses[color]} text-white hover:shadow-lg transition-all group`}
     >
-      <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-        <Icon size={24} className="text-white" />
-      </div>
-      <span className="text-sm font-semibold text-white">{label}</span>
+      <Icon size={24} className="mb-2 group-hover:scale-110 transition-transform" />
+      <span className="text-xs font-semibold">{label}</span>
     </Link>
   )
 }
 
 function StatCard({ icon: Icon, value, label, trend }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-gray-100">
-      <div className="flex items-center justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Icon size={20} className="text-primary" />
+    <div className="bg-white rounded-lg p-6 border border-gray-200 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-4">
+        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center">
+          <Icon size={22} className="text-primary" />
         </div>
         {trend && (
-          <span className="text-xs font-medium text-green-600 flex items-center gap-1">
-            <TrendingUp size={12} />
+          <span className="text-xs font-bold text-green-600 flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
+            <TrendingUp size={14} />
             {trend}
           </span>
         )}
       </div>
-      <p className="text-2xl font-bold text-text-primary">{value}</p>
-      <p className="text-sm text-text-secondary">{label}</p>
+      <p className="text-3xl font-bold text-text-primary mb-1">{value}</p>
+      <p className="text-sm text-text-secondary font-medium">{label}</p>
     </div>
   )
 }
 
 function Dashboard() {
-  const { currentUser, progress } = useSelector((state) => state.user)
+  const { currentUser } = useSelector(state => state.user)
 
-  const { data: enrolledCourses = [], isLoading: coursesLoading, isError: coursesError } = useQuery({
+  console.log('Dashboard mounted, currentUser:', currentUser)
+
+  const {
+    data: enrolledCourses = [],
+    isLoading: coursesLoading,
+    isError: coursesError,
+  } = useQuery({
     queryKey: ['enrolledCourses'],
     queryFn: async () => {
       try {
+        console.log('Fetching enrolled courses...')
         const res = await coursesAPI.getEnrolled()
-        return res.data || []
+        console.log('Enrolled courses response:', res)
+        // Handle different response structures
+        let courses = res.data || []
+        // If courses is an object (not array), try to extract courses array
+        if (courses && typeof courses === 'object' && !Array.isArray(courses)) {
+          courses = courses.courses || courses.data || []
+        }
+        console.log('Extracted courses array:', courses)
+        return Array.isArray(courses) ? courses : []
       } catch (error) {
         console.error('Failed to fetch enrolled courses:', error)
         return []
@@ -131,7 +162,7 @@ function Dashboard() {
     queryFn: async () => {
       try {
         const res = await analyticsAPI.getLearningInsights()
-        return res.data || {}
+        return res.data?.data || {}
       } catch (error) {
         console.error('Failed to fetch insights:', error)
         return {}
@@ -141,173 +172,208 @@ function Dashboard() {
     retry: 1,
   })
 
-  const mockCourses = [
-    { id: 1, title: 'Introduction to Python', progress: 65, lessonsCompleted: 13, totalLessons: 20 },
-    { id: 2, title: 'Web Development Fundamentals', progress: 40, lessonsCompleted: 8, totalLessons: 20 },
-    { id: 3, title: 'Data Science Basics', progress: 20, lessonsCompleted: 4, totalLessons: 20 },
-  ]
+  const { data: progressSummary = {} } = useQuery({
+    queryKey: ['learningProgress'],
+    queryFn: async () => {
+      try {
+        const { default: api } = await import('../services/api')
+        const res = await api.get(`/progress/user/${currentUser._id}`)
+        return res.data || {}
+      } catch (e) {
+        return {}
+      }
+    },
+    enabled: !!currentUser,
+    retry: 1,
+  })
 
-  const displayCourses = enrolledCourses.length > 0 ? enrolledCourses : mockCourses
+  const displayCourses = Array.isArray(enrolledCourses) ? enrolledCourses : []
 
-  const achievements = [
-    { icon: Trophy, title: 'First Steps', desc: 'Completed your first lesson', color: 'text-accent-yellow' },
-    { icon: Flame, title: 'On Fire', desc: '5 day learning streak', color: 'text-accent-orange' },
-    { icon: FlaskConical, title: 'Lab Explorer', desc: 'First VR experiment completed', color: 'text-accent-cyan' },
-  ]
+  const courseTotals = Array.isArray(displayCourses)
+    ? displayCourses.reduce(
+        (acc, course) => {
+          acc.totalLessons += course.totalLessons || 0
+          acc.completedLessons += course.lessonsCompleted || 0
+          acc.totalProgress += course.progress || 0
+          return acc
+        },
+        { totalLessons: 0, completedLessons: 0, totalProgress: 0 }
+      )
+    : { totalLessons: 0, completedLessons: 0, totalProgress: 0 }
+
+  const avgCompletion = displayCourses.length
+    ? Math.round(courseTotals.totalProgress / displayCourses.length)
+    : 0
+
+  const summary = progressSummary?.summary || {}
+  const totalCoursesEnrolled = displayCourses.length
+  const totalLearningHours = summary.totalLearningHours ?? 0
+  const certificatesEarned = Array.isArray(progressSummary?.certificates)
+    ? progressSummary.certificates.length
+    : (summary.certificatesEarned ?? 0)
+  const achievements = insights.achievements || []
+  const recommendations = insights.recommendations || []
+  const weeklyGoal = progressSummary?.data?.weeklyGoal
 
   return (
-    <div className="min-h-screen bg-surface-light">
-      <div className="bg-gradient-to-br from-primary via-primary to-primary-dark text-white py-10">
-        <div className="container-custom">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Star size={20} className="text-accent-yellow" />
-                <span className="text-sm font-medium text-white/80">Welcome back</span>
-              </div>
-              <h1 className="text-3xl font-bold mb-2">
-                {currentUser?.name || 'Learner'}
-              </h1>
-              <p className="text-white/70">
-                Continue your learning journey. You're making great progress!
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-5 py-4 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Flame size={18} className="text-accent-orange" />
-                  <span className="text-2xl font-bold">{progress?.streakDays || 5}</span>
-                </div>
-                <span className="text-white/70 text-sm">day streak</span>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-5 py-4 border border-white/10">
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap size={18} className="text-accent-yellow" />
-                  <span className="text-2xl font-bold">{progress?.totalXP || 1250}</span>
-                </div>
-                <span className="text-white/70 text-sm">total XP</span>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-surface-bg">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="container-custom py-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-text-primary mb-1">My learning</h1>
+          <p className="text-text-secondary">
+            Welcome back{currentUser?.name ? `, ${currentUser.name}` : ''}
+          </p>
         </div>
       </div>
 
-      <div className="container-custom py-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <QuickAction icon={BookOpen} label="Browse Courses" to="/courses" color="primary" />
-          <QuickAction icon={FlaskConical} label="Virtual Labs" to="/lab/chemistry" color="cyan" />
-          <QuickAction icon={Bot} label="AI Tutor" to="/ai-tutor" color="pink" />
+      <div className="container-custom py-8 space-y-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={BookOpen} value={`${avgCompletion}%`} label="Avg. Completion" />
+          <StatCard icon={FlaskConical} value={totalCoursesEnrolled} label="Courses Enrolled" />
+          <StatCard icon={Clock} value={`${totalLearningHours}h`} label="Learning Hours" />
+          <StatCard icon={Award} value={certificatesEarned} label="Certificates" />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <QuickAction icon={Bot} label="AI Tutor" to="/ai-tutor" color="primary" />
           <QuickAction icon={BarChart3} label="My Progress" to="/profile" color="orange" />
+          <QuickAction icon={FlaskConical} label="Science Lab" to="/science-lab" color="cyan" />
+          <QuickAction icon={Award} label="Certificates" to="/certificates" color="pink" />
+          <QuickAction icon={Target} label="Mock Tests" to="/mock-tests" color="orange" />
         </div>
 
-        <div className="grid lg:grid-cols-4 gap-4 mb-8">
-          <StatCard icon={BookOpen} value="12" label="Courses enrolled" trend="+2 this month" />
-          <StatCard icon={Clock} value="48h" label="Total learning time" trend="+5h this week" />
-          <StatCard icon={Award} value="8" label="Certificates earned" />
-          <StatCard icon={Target} value="85%" label="Avg. completion rate" trend="+12%" />
-        </div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <section>
-              <div className="flex items-center justify-between mb-5">
+        {/* Main Content */}
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Continue Learning Section */}
+          <div className="lg:col-span-2 space-y-6">
+            <section className="bg-white rounded-lg p-6 border border-gray-200">
+              <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-text-primary">Continue Learning</h2>
-                <Link to="/courses" className="text-primary hover:text-primary-dark text-sm font-semibold flex items-center gap-1 transition-colors">
-                  View all
+                <Link
+                  to="/courses"
+                  className="text-primary hover:text-primary-dark text-sm font-bold flex items-center gap-1 transition-colors"
+                >
+                  All courses
                   <ArrowRight size={16} />
                 </Link>
               </div>
-              
               {coursesLoading ? (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {[1, 2].map(i => (
-                    <div key={i} className="bg-white rounded-2xl h-56 animate-pulse" />
-                  ))}
+                <div className="text-center py-8">
+                  <p className="text-text-secondary">Loading your courses...</p>
+                </div>
+              ) : displayCourses.length === 0 ? (
+                <div className="text-center py-12 px-4 border-2 border-dashed border-gray-200 rounded-lg">
+                  <BookOpen size={48} className="text-gray-300 mx-auto mb-3" />
+                  <p className="text-text-primary font-semibold mb-1">
+                    Start your learning journey
+                  </p>
+                  <p className="text-sm text-text-secondary mb-4">
+                    Explore our courses and enroll to begin
+                  </p>
+                  <Link to="/courses" className="btn-primary inline-flex">
+                    Browse Courses
+                  </Link>
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {displayCourses.slice(0, 4).map((course) => (
-                    <CourseCard key={course.id} course={course} />
+                <div className="grid md:grid-cols-2 gap-4">
+                  {displayCourses.slice(0, 4).map(course => (
+                    <CourseCard key={course.id || course._id} course={course} />
+                  ))}
+                </div>
+              )}
+              {coursesError && (
+                <p className="text-sm text-red-600 mt-3 bg-red-50 p-3 rounded">
+                  Failed to load courses. Please try again.
+                </p>
+              )}
+            </section>
+
+            {/* Recommended Section */}
+            <section className="bg-white rounded-lg p-6 border border-gray-200">
+              <h2 className="text-xl font-bold text-text-primary mb-4">Recommended For You</h2>
+              {recommendations.length === 0 ? (
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
+                  <Target size={40} className="text-gray-300 mx-auto mb-3" />
+                  <p className="text-text-secondary text-sm">
+                    Complete some lessons to get personalized recommendations
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recommendations.map((rec, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                        <Target size={20} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-text-primary mb-1">{rec.title}</h3>
+                        {rec.desc && (
+                          <p className="text-sm text-text-secondary line-clamp-2">{rec.desc}</p>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
             </section>
-
-            <section>
-              <h2 className="text-xl font-bold text-text-primary mb-5">Recommended For You</h2>
-              <div className="bg-white rounded-2xl p-6 border border-gray-100 hover:shadow-lg hover:border-primary/20 transition-all">
-                <div className="flex items-start gap-5">
-                  <div className="w-16 h-16 bg-gradient-to-br from-accent-orange to-accent-yellow rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Target size={28} className="text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-text-primary text-lg mb-1">Machine Learning Fundamentals</h3>
-                    <p className="text-text-secondary mb-4">
-                      Based on your progress in Python, you're ready for this course!
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs bg-primary/10 text-primary px-3 py-1.5 rounded-full font-medium">
-                        Beginner Friendly
-                      </span>
-                      <span className="text-xs text-text-muted flex items-center gap-1">
-                        <Clock size={12} />
-                        12 hours
-                      </span>
-                      <span className="text-xs text-text-muted flex items-center gap-1">
-                        <BookOpen size={12} />
-                        24 lessons
-                      </span>
-                    </div>
-                  </div>
-                  <Link 
-                    to="/courses/ml-fundamentals"
-                    className="btn-primary text-sm px-5 py-2.5 flex-shrink-0"
-                  >
-                    Start
-                  </Link>
-                </div>
-              </div>
-            </section>
           </div>
+
+          {/* Sidebar */}
 
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-text-primary mb-5">Weekly Goal</h3>
-              <div className="flex items-center gap-5">
-                <ProgressRing progress={70} />
-                <div>
-                  <p className="text-3xl font-bold text-text-primary">7/10</p>
-                  <p className="text-sm text-text-secondary">lessons completed</p>
+              <h3 className="font-semibold text-text-primary mb-4">Weekly Goal</h3>
+              {weeklyGoal ? (
+                <div className="flex items-center gap-4">
+                  <ProgressRing progress={weeklyGoal.progress || 0} />
+                  <div>
+                    <p className="text-3xl font-bold text-text-primary">
+                      {weeklyGoal.completed ?? 0}/{weeklyGoal.target ?? 0}
+                    </p>
+                    <p className="text-sm text-text-secondary">lessons completed</p>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-5 p-4 bg-primary/5 rounded-xl">
-                <p className="text-sm text-text-secondary">
-                  <span className="font-semibold text-primary">3 more lessons</span> to reach your weekly goal!
-                </p>
-              </div>
+              ) : (
+                <p className="text-text-secondary">Set a weekly goal to track your progress.</p>
+              )}
             </div>
 
             <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-text-primary mb-5">Recent Achievements</h3>
-              <div className="space-y-3">
-                {achievements.map((badge, i) => {
-                  const Icon = badge.icon
-                  return (
-                    <div key={i} className="flex items-center gap-4 p-3 bg-surface-light rounded-xl hover:bg-primary/5 transition-colors">
-                      <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
-                        <Icon size={20} className={badge.color} />
+              <h3 className="font-semibold text-text-primary mb-4">Recent Achievements</h3>
+              {achievements.length === 0 ? (
+                <p className="text-text-secondary">
+                  Earn achievements by completing lessons and tests.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {achievements.map((badge, i) => {
+                    const Icon = badge.icon || Trophy
+                    return (
+                      <div
+                        key={i}
+                        className="flex items-center gap-4 p-3 bg-surface-light rounded-xl hover:bg-primary/5 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                          <Icon size={20} className={badge.color || 'text-primary'} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-text-primary">{badge.title}</p>
+                          <p className="text-xs text-text-muted">{badge.desc}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-text-primary">{badge.title}</p>
-                        <p className="text-xs text-text-muted">{badge.desc}</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <Link 
+                    )
+                  })}
+                </div>
+              )}
+              <Link
                 to="/profile#achievements"
-                className="flex items-center justify-center gap-1 text-primary text-sm font-semibold mt-5 hover:text-primary-dark transition-colors"
+                className="flex items-center justify-center gap-1 text-primary text-sm font-semibold mt-4 hover:text-primary-dark transition-colors"
               >
                 View all badges
                 <ArrowRight size={16} />
@@ -321,10 +387,10 @@ function Dashboard() {
                 </div>
                 <h3 className="font-semibold">Need Help?</h3>
               </div>
-              <p className="text-sm text-white/80 mb-5">
+              <p className="text-sm text-white/80 mb-4">
                 Ask our AI Tutor any question. It will guide you without giving away the answer!
               </p>
-              <Link 
+              <Link
                 to="/ai-tutor"
                 className="block w-full text-center bg-white text-primary font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
               >

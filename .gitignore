@@ -9,3 +9,6 @@ build
 coverage
 .cache
 *.tsbuildinfo
+NODE_ENV=development.txt
+GOOGLE_CLIENT_ID=*.md
+client/src/pages/Dashboard.jsx.backup
