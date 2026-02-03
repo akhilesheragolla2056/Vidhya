@@ -140,6 +140,13 @@ app.use(errorHandler)
 const PORT = process.env.PORT || 5000
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/lumina'
 
+// Debug logging for deployment troubleshooting
+console.log('Environment check:')
+console.log('PORT:', PORT)
+console.log('MONGODB_URI exists:', !!process.env.MONGODB_URI)
+console.log('MONGODB_URI value:', MONGODB_URI ? MONGODB_URI.substring(0, 20) + '...' : 'undefined')
+console.log('CLIENT_URL:', process.env.CLIENT_URL)
+
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
