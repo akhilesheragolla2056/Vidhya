@@ -1,9 +1,15 @@
 import axios from 'axios'
 
+const ensureApiSuffix = url => {
+  if (!url) return url
+  const trimmed = url.replace(/\/$/, '')
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+}
+
 // In development, use relative path to go through Vite proxy
 // In production, use the full API URL
 const API_URL = import.meta.env.PROD
-  ? import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+  ? ensureApiSuffix(import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
   : '/api'
 
 export const API_BASE_URL = API_URL
