@@ -27,6 +27,8 @@ const sanitizeCallbackEnv = value => {
   return normalized
 }
 
+const isLocalhostCallback = value => /^https?:\/\/localhost(?::\d+)?\//i.test(value || '')
+
 const getBaseUrl = req => {
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http'
   const host = req.headers['x-forwarded-host'] || req.get('host')
@@ -35,7 +37,8 @@ const getBaseUrl = req => {
 
 const getGoogleRedirectUri = req => {
   const configured = sanitizeCallbackEnv(process.env.GOOGLE_CALLBACK_URL)
-  if (configured) return configured
+  const isProd = process.env.NODE_ENV === 'production'
+  if (configured && !(isProd && isLocalhostCallback(configured))) return configured
   return `${getBaseUrl(req)}/api/auth/google/callback`
 }
 
