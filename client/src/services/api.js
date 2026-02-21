@@ -6,10 +6,12 @@ const ensureApiSuffix = url => {
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
 }
 
+const DEFAULT_PROD_API_URL = 'https://lumina-api-production-1fb3.up.railway.app/api'
+
 // In development, use relative path to go through Vite proxy
 // In production, use the full API URL
 const API_URL = import.meta.env.PROD
-  ? ensureApiSuffix(import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+  ? ensureApiSuffix(import.meta.env.VITE_API_URL || DEFAULT_PROD_API_URL)
   : '/api'
 
 export const API_BASE_URL = API_URL

@@ -13,7 +13,9 @@ import {
   endPoll,
 } from '../store/slices/classroomSlice'
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'
+const SOCKET_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_SOCKET_URL || 'https://lumina-api-production-1fb3.up.railway.app')
+  : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000')
 
 export function useSocket(roomId) {
   const dispatch = useDispatch()

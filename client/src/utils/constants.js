@@ -1,5 +1,13 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000'
+const DEFAULT_PROD_API_URL = 'https://lumina-api-production-1fb3.up.railway.app/api'
+const DEFAULT_PROD_SOCKET_URL = 'https://lumina-api-production-1fb3.up.railway.app'
+
+export const API_BASE_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_API_URL || DEFAULT_PROD_API_URL)
+  : (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+
+export const SOCKET_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_SOCKET_URL || DEFAULT_PROD_SOCKET_URL)
+  : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000')
 
 export const TOKEN_KEY = 'vidhya_auth_token'
 export const REFRESH_TOKEN_KEY = 'vidhya_refresh_token'
