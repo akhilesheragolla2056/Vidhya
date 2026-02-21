@@ -19,13 +19,32 @@ let googleClient = null
 let twitterClient = null
 let clientsInitialized = false
 
+const sanitizeCallbackEnv = value => {
+  if (!value || typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  // Handle accidental "KEY=value" paste in env dashboards.
+  const normalized = trimmed.replace(/^GOOGLE_CALLBACK_URL=/i, '')
+  return normalized
+}
+
+const getBaseUrl = req => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http'
+  const host = req.headers['x-forwarded-host'] || req.get('host')
+  return `${proto}://${host}`
+}
+
+const getGoogleRedirectUri = req => {
+  const configured = sanitizeCallbackEnv(process.env.GOOGLE_CALLBACK_URL)
+  if (configured) return configured
+  return `${getBaseUrl(req)}/api/auth/google/callback`
+}
+
 const initializeClients = () => {
   if (clientsInitialized) return
   clientsInitialized = true
 
   const CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '')
-  const GOOGLE_REDIRECT_URI =
-    process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback'
+  const GOOGLE_REDIRECT_URI = sanitizeCallbackEnv(process.env.GOOGLE_CALLBACK_URL)
   const TWITTER_REDIRECT_URI =
     process.env.TWITTER_CALLBACK_URL || 'http://localhost:5000/api/auth/twitter/callback'
 
@@ -39,7 +58,7 @@ const initializeClients = () => {
     googleClient = new OAuth2Client({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      redirectUri: GOOGLE_REDIRECT_URI,
+      redirectUri: GOOGLE_REDIRECT_URI || undefined,
     })
   }
 
@@ -52,8 +71,6 @@ const initializeClients = () => {
 }
 
 const CLIENT_URL = (process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '')
-const GOOGLE_REDIRECT_URI =
-  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback'
 const TWITTER_REDIRECT_URI =
   process.env.TWITTER_CALLBACK_URL || 'http://localhost:5000/api/auth/twitter/callback'
 
@@ -152,12 +169,14 @@ router.get('/google', async (req, res, next) => {
       throw new ApiError(503, 'Google login not configured')
     }
 
+    const googleRedirectUri = getGoogleRedirectUri(req)
     const redirectTarget = req.query.redirect || `${CLIENT_URL}/auth/callback`
     const state = createStateParam(redirectTarget)
 
     const authUrl = googleClient.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
+      redirect_uri: googleRedirectUri,
       scope: [
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
@@ -189,7 +208,8 @@ router.get('/google/callback', async (req, res, next) => {
       throw new ApiError(400, 'Missing authorization code')
     }
 
-    const { tokens } = await googleClient.getToken({ code, redirect_uri: GOOGLE_REDIRECT_URI })
+    const googleRedirectUri = getGoogleRedirectUri(req)
+    const { tokens } = await googleClient.getToken({ code, redirect_uri: googleRedirectUri })
     const ticket = await googleClient.verifyIdToken({
       idToken: tokens.id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
