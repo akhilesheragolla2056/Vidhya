@@ -27,7 +27,7 @@ import { authMiddleware } from './middleware/auth.js'
 
 const app = express()
 const httpServer = createServer(app)
-app.set('trust proxy', 1)
+app.set('trust proxy', true)
 
 const parseAllowedOrigins = () => {
   const configured = (process.env.CORS_ORIGINS || '')
@@ -76,6 +76,11 @@ const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
   message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: {
+    xForwardedForHeader: false,
+  },
 })
 
 // Middleware
