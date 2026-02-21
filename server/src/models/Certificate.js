@@ -73,6 +73,5 @@ certificateSchema.pre('save', async function (next) {
 
 // Index for quick queries
 certificateSchema.index({ user: 1, course: 1 })
-certificateSchema.index({ certificateNumber: 1 }, { unique: true })
 
 export default mongoose.model('Certificate', certificateSchema)

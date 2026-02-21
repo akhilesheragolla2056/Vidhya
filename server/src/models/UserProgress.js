@@ -109,7 +109,6 @@ const userProgressSchema = new mongoose.Schema(
 )
 
 // Index for quick queries
-userProgressSchema.index({ user: 1 })
 userProgressSchema.index({ 'enrolledCourses.course': 1 })
 
 export default mongoose.model('UserProgress', userProgressSchema)
