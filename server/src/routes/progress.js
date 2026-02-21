@@ -41,7 +41,7 @@ router.get('/:testId', authMiddleware, async (req, res, next) => {
     const test = await MockTest.findById(req.params.testId)
 
     if (!test) {
-      throw new ApiError('Test not found', 404)
+      throw new ApiError(404, 'Test not found')
     }
 
     // For authenticated users, don't show correct answers before they submit
@@ -75,7 +75,7 @@ router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
 
     const test = await MockTest.findById(testId)
     if (!test) {
-      throw new ApiError('Test not found', 404)
+      throw new ApiError(404, 'Test not found')
     }
 
     // Calculate score
@@ -247,7 +247,7 @@ router.post('/video', authMiddleware, async (req, res, next) => {
 router.get('/user/:userId', authMiddleware, async (req, res, next) => {
   try {
     if (req.user._id.toString() !== req.params.userId && req.user.role !== 'admin') {
-      throw new ApiError('Unauthorized', 403)
+      throw new ApiError(403, 'Unauthorized')
     }
 
     const progress = await UserProgress.findOne({
@@ -277,11 +277,11 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 
     // Verify course completion requirements
     if (videosCompletionPercentage < 80) {
-      throw new ApiError('Videos must be 80% complete', 400)
+      throw new ApiError(400, 'Videos must be 80% complete')
     }
 
     if (testScore < 70) {
-      throw new ApiError('Must score 70% or higher on test', 400)
+      throw new ApiError(400, 'Must score 70% or higher on test')
     }
 
     // Check if certificate already exists
@@ -300,7 +300,7 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
 
     const course = await Course.findById(courseId)
     if (!course) {
-      throw new ApiError('Course not found', 404)
+      throw new ApiError(404, 'Course not found')
     }
 
     // Calculate total learning hours
@@ -370,7 +370,7 @@ router.get('/:certificateId', async (req, res, next) => {
       .populate('course', 'title category')
 
     if (!certificate) {
-      throw new ApiError('Certificate not found', 404)
+      throw new ApiError(404, 'Certificate not found')
     }
 
     res.json({

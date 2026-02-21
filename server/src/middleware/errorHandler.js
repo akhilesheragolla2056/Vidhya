@@ -55,9 +55,22 @@ export const errorHandler = (err, req, res, next) => {
 // Custom error class
 export class ApiError extends Error {
   constructor(statusCode, message) {
-    super(message)
-    this.statusCode = statusCode
-    this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error'
+    const normalizedStatusCode =
+      typeof statusCode === 'number'
+        ? statusCode
+        : typeof message === 'number'
+          ? message
+          : 500
+    const normalizedMessage =
+      typeof statusCode === 'string'
+        ? statusCode
+        : typeof message === 'string'
+          ? message
+          : 'Internal server error'
+
+    super(normalizedMessage)
+    this.statusCode = normalizedStatusCode
+    this.status = `${normalizedStatusCode}`.startsWith('4') ? 'fail' : 'error'
     Error.captureStackTrace(this, this.constructor)
   }
 }
