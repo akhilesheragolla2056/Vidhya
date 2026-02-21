@@ -184,13 +184,9 @@ const MONGODB_URI = (rawMongoUri || 'mongodb://localhost:27017/lumina')
   .replace(/^=+/, '')
   .trim()
 
-// Debug logging for deployment troubleshooting
-console.log('Environment check:')
-console.log('PORT:', PORT)
-console.log('MONGODB_URI exists:', !!rawMongoUri)
-console.log('MONGODB_URI value:', MONGODB_URI ? MONGODB_URI.substring(0, 20) + '...' : 'undefined')
-console.log('CLIENT_URL:', process.env.CLIENT_URL)
-console.log('CORS_ORIGINS:', allowedOrigins)
+if (!rawMongoUri) {
+  console.warn('MONGODB_URI is not set. Falling back to local MongoDB URI.')
+}
 
 mongoose
   .connect(MONGODB_URI)
@@ -198,6 +194,7 @@ mongoose
     console.log('Connected to MongoDB')
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`)
+      console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`)
     })
   })
   .catch(err => {
