@@ -11,6 +11,7 @@ import {
   Brain,
   Code,
   Dumbbell,
+  Leaf,
   Briefcase,
   Trophy,
   Filter,
@@ -33,6 +34,7 @@ export default function CoursesNew() {
   // Category icons mapping
   const categoryIcons = {
     'Academic Education': Brain,
+    'BSc Agriculture': Leaf,
     'Sports & Fitness': Dumbbell,
     'Skill-based Courses': Code,
     'Competitive Exams': Trophy,
@@ -313,6 +315,7 @@ function CourseCard({ course, index }) {
 
 const categoryIcons = {
   'Academic Education': Brain,
+  'BSc Agriculture': Leaf,
   'Sports & Fitness': Dumbbell,
   'Skill-based Courses': Code,
   'Competitive Exams': Trophy,

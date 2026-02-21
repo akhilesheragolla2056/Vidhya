@@ -654,7 +654,7 @@ The UPSC CSE consists of three stages:
   {
     id: 'bsc-agri-soil-science',
     title: 'BSc Agriculture: Fundamentals of Soil Science',
-    category: 'Academic Education',
+    category: 'BSc Agriculture',
     subcategory: 'BSc Agriculture',
     description:
       'Build a strong foundation in soil formation, properties, fertility, and practical nutrient management for BSc Agriculture students.',
@@ -766,7 +766,7 @@ Principles:
   {
     id: 'bsc-agri-agronomy',
     title: 'BSc Agriculture: Principles of Agronomy',
-    category: 'Academic Education',
+    category: 'BSc Agriculture',
     subcategory: 'BSc Agriculture',
     description:
       'Learn crop production principles, sowing methods, weed control, irrigation scheduling, and yield optimization.',
@@ -877,7 +877,7 @@ The first 30-45 days in many crops are critical for weed control.
   {
     id: 'bsc-agri-plant-pathology',
     title: 'BSc Agriculture: Basics of Plant Pathology',
-    category: 'Academic Education',
+    category: 'BSc Agriculture',
     subcategory: 'BSc Agriculture',
     description:
       'Understand major crop diseases, disease cycles, diagnosis basics, and integrated disease management strategies.',
