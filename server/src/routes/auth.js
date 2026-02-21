@@ -28,6 +28,7 @@ const sanitizeCallbackEnv = value => {
 }
 
 const isLocalhostCallback = value => /^https?:\/\/localhost(?::\d+)?\//i.test(value || '')
+const isLocalRequestHost = host => /^localhost(?::\d+)?$/i.test(host || '')
 
 const getBaseUrl = req => {
   const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http'
@@ -37,8 +38,9 @@ const getBaseUrl = req => {
 
 const getGoogleRedirectUri = req => {
   const configured = sanitizeCallbackEnv(process.env.GOOGLE_CALLBACK_URL)
-  const isProd = process.env.NODE_ENV === 'production'
-  if (configured && !(isProd && isLocalhostCallback(configured))) return configured
+  const requestHost = req.headers['x-forwarded-host'] || req.get('host') || ''
+  const shouldIgnoreLocalConfigured = isLocalhostCallback(configured) && !isLocalRequestHost(requestHost)
+  if (configured && !shouldIgnoreLocalConfigured) return configured
   return `${getBaseUrl(req)}/api/auth/google/callback`
 }
 
@@ -173,6 +175,7 @@ router.get('/google', async (req, res, next) => {
     }
 
     const googleRedirectUri = getGoogleRedirectUri(req)
+    console.log('Google OAuth request redirect_uri:', googleRedirectUri)
     const redirectTarget = req.query.redirect || `${CLIENT_URL}/auth/callback`
     const state = createStateParam(redirectTarget)
 
