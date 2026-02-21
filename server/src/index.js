@@ -27,7 +27,17 @@ import { authMiddleware } from './middleware/auth.js'
 
 const app = express()
 const httpServer = createServer(app)
-app.set('trust proxy', true)
+
+const resolveTrustProxy = () => {
+  const raw = (process.env.TRUST_PROXY || '').trim().toLowerCase()
+  if (!raw) return process.env.NODE_ENV === 'production' ? 1 : false
+  if (raw === 'true') return 1
+  if (raw === 'false') return false
+  const hops = Number.parseInt(raw, 10)
+  return Number.isFinite(hops) && hops >= 1 ? hops : 1
+}
+
+app.set('trust proxy', resolveTrustProxy())
 
 const parseAllowedOrigins = () => {
   const configured = (process.env.CORS_ORIGINS || '')

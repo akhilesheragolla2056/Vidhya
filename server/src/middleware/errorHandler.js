@@ -1,5 +1,10 @@
 export const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err)
+  const statusCode = typeof err.statusCode === 'number' ? err.statusCode : 500
+  if (statusCode >= 500) {
+    console.error('Error:', err)
+  } else {
+    console.warn(`${req.method} ${req.originalUrl} -> ${statusCode}: ${err.message}`)
+  }
 
   // Mongoose validation error
   if (err.name === 'ValidationError') {
@@ -37,7 +42,7 @@ export const errorHandler = (err, req, res, next) => {
 
   // Custom API error
   if (err.statusCode) {
-    return res.status(err.statusCode).json({
+    return res.status(statusCode).json({
       success: false,
       message: err.message,
     })
