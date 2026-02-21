@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import PropTypes from 'prop-types'
 import { Play, Pause, Volume2, VolumeX, Maximize, CheckCircle2 } from 'lucide-react'
 
+const FALLBACK_VIDEO_URL =
+  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
+
 /**
  * VideoLesson Component
  * YouTube video player with progress tracking and auto-play next
@@ -16,6 +19,8 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const [watchedPercentage, setWatchedPercentage] = useState(0)
+  const [videoError, setVideoError] = useState(false)
+  const fallbackVideoRef = useRef(null)
 
   // Extract YouTube video ID
   const getVideoId = url => {
@@ -37,6 +42,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   }
 
   const videoId = getVideoId(videoUrl)
+  const isYouTube = Boolean(videoId)
 
   // Load YouTube IFrame API
   useEffect(() => {
@@ -50,7 +56,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
 
   // Initialize YouTube Player
   useEffect(() => {
-    if (!videoId || !containerRef.current) return
+    if (!videoId || !containerRef.current || videoError) return
 
     const initPlayer = () => {
       const newPlayer = new window.YT.Player(containerRef.current, {
@@ -77,6 +83,9 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
               setIsPlaying(false)
               handleVideoComplete()
             }
+          },
+          onError: () => {
+            setVideoError(true)
           },
         },
       })
@@ -131,6 +140,14 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   }
 
   const togglePlay = () => {
+    if (fallbackVideoRef.current) {
+      if (isPlaying) {
+        fallbackVideoRef.current.pause()
+      } else {
+        fallbackVideoRef.current.play().catch(() => {})
+      }
+      return
+    }
     if (!player) return
     if (isPlaying) {
       player.pauseVideo()
@@ -140,6 +157,11 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   }
 
   const toggleMute = () => {
+    if (fallbackVideoRef.current) {
+      fallbackVideoRef.current.muted = !fallbackVideoRef.current.muted
+      setIsMuted(fallbackVideoRef.current.muted)
+      return
+    }
     if (!player) return
     if (isMuted) {
       player.unMute()
@@ -151,6 +173,13 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   }
 
   const handleSeek = e => {
+    if (fallbackVideoRef.current) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const pos = (e.clientX - rect.left) / rect.width
+      const seekTime = pos * (fallbackVideoRef.current.duration || 0)
+      fallbackVideoRef.current.currentTime = seekTime
+      return
+    }
     if (!player) return
     const rect = e.currentTarget.getBoundingClientRect()
     const pos = (e.clientX - rect.left) / rect.width
@@ -172,27 +201,59 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
     }
   }
 
-  if (!videoId) {
-    return (
-      <div className="aspect-video bg-gray-900 rounded-xl flex items-center justify-center">
-        <p className="text-gray-400">Invalid video URL</p>
-      </div>
-    )
+  const handleFallbackLoaded = e => {
+    setDuration(e.currentTarget.duration || 0)
   }
+
+  const handleFallbackTimeUpdate = e => {
+    const current = e.currentTarget.currentTime || 0
+    const total = e.currentTarget.duration || 0
+    setCurrentTime(current)
+    if (total > 0) {
+      const percent = (current / total) * 100
+      setProgress(percent)
+      const watched = Math.round(percent)
+      if (watched > watchedPercentage) {
+        setWatchedPercentage(watched)
+      }
+    }
+  }
+
+  const handleFallbackEnded = () => {
+    handleVideoComplete()
+  }
+
+  const fallbackSource = !isYouTube ? videoUrl : videoError ? FALLBACK_VIDEO_URL : null
 
   return (
     <div ref={playerRef} className="relative group">
       {/* YouTube Player Container */}
       <div className="aspect-video bg-black rounded-xl overflow-hidden">
-        <div ref={containerRef} className="w-full h-full" />
+        {fallbackSource ? (
+          <video
+            ref={fallbackVideoRef}
+            className="w-full h-full"
+            controls
+            playsInline
+            onLoadedMetadata={handleFallbackLoaded}
+            onTimeUpdate={handleFallbackTimeUpdate}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={handleFallbackEnded}
+          >
+            <source src={fallbackSource} type="video/mp4" />
+          </video>
+        ) : (
+          <div ref={containerRef} className="w-full h-full" />
+        )}
       </div>
 
       {/* Custom Controls Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         {/* Progress Bar */}
         <div
-          className="w-full h-1.5 bg-white/30 rounded-full mb-3 cursor-pointer overflow-hidden"
-          onClick={handleSeek}
+          className="w-full h-1.5 bg-white/30 rounded-full mb-3 cursor-pointer overflow-hidden pointer-events-auto"
+          onClick={fallbackSource ? undefined : handleSeek}
         >
           <div
             className="h-full bg-primary rounded-full transition-all"
@@ -206,7 +267,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
             {/* Play/Pause */}
             <button
               onClick={togglePlay}
-              className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors pointer-events-auto"
             >
               {isPlaying ? (
                 <Pause size={20} className="text-white" />
@@ -218,7 +279,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
             {/* Mute/Unmute */}
             <button
               onClick={toggleMute}
-              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors pointer-events-auto"
             >
               {isMuted ? (
                 <VolumeX size={18} className="text-white" />
@@ -246,7 +307,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
           {/* Fullscreen */}
           <button
             onClick={toggleFullscreen}
-            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+            className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors pointer-events-auto"
           >
             <Maximize size={18} className="text-white" />
           </button>
