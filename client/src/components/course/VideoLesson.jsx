@@ -29,6 +29,9 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
       if (url.includes('youtube.com/watch')) {
         return new URL(url).searchParams.get('v')
       }
+      if (url.includes('youtube.com/shorts/')) {
+        return url.split('shorts/')[1].split('?')[0]
+      }
       if (url.includes('youtu.be/')) {
         return url.split('youtu.be/')[1].split('?')[0]
       }
@@ -59,36 +62,43 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
     if (!videoId || !containerRef.current || videoError) return
 
     const initPlayer = () => {
-      const newPlayer = new window.YT.Player(containerRef.current, {
-        videoId: videoId,
-        playerVars: {
-          autoplay: 0,
-          controls: 0,
-          rel: 0,
-          modestbranding: 1,
-          playsinline: 1,
-        },
-        events: {
-          onReady: event => {
-            setPlayer(event.target)
-            setDuration(event.target.getDuration())
+      try {
+        const newPlayer = new window.YT.Player(containerRef.current, {
+          videoId: videoId,
+          playerVars: {
+            autoplay: 0,
+            controls: 0,
+            rel: 0,
+            modestbranding: 1,
+            playsinline: 1,
           },
-          onStateChange: event => {
-            // 0 = ended, 1 = playing, 2 = paused
-            if (event.data === window.YT.PlayerState.PLAYING) {
-              setIsPlaying(true)
-            } else if (event.data === window.YT.PlayerState.PAUSED) {
-              setIsPlaying(false)
-            } else if (event.data === window.YT.PlayerState.ENDED) {
-              setIsPlaying(false)
-              handleVideoComplete()
-            }
+          events: {
+            onReady: event => {
+              setPlayer(event.target)
+              setDuration(event.target.getDuration())
+            },
+            onStateChange: event => {
+              // 0 = ended, 1 = playing, 2 = paused
+              if (event.data === window.YT.PlayerState.PLAYING) {
+                setIsPlaying(true)
+              } else if (event.data === window.YT.PlayerState.PAUSED) {
+                setIsPlaying(false)
+              } else if (event.data === window.YT.PlayerState.ENDED) {
+                setIsPlaying(false)
+                handleVideoComplete()
+              }
+            },
+            onError: () => {
+              setVideoError(true)
+            },
           },
-          onError: () => {
-            setVideoError(true)
-          },
-        },
-      })
+        })
+        return newPlayer
+      } catch (error) {
+        console.error('YouTube player init failed, using fallback video:', error)
+        setVideoError(true)
+        return null
+      }
     }
 
     if (window.YT && window.YT.Player) {
@@ -224,12 +234,16 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   }
 
   const fallbackSource = !isYouTube ? videoUrl : videoError ? FALLBACK_VIDEO_URL : null
+  const safeFallbackSource =
+    fallbackSource && fallbackSource.includes('youtube.com')
+      ? FALLBACK_VIDEO_URL
+      : fallbackSource
 
   return (
     <div ref={playerRef} className="relative group">
       {/* YouTube Player Container */}
       <div className="aspect-video bg-black rounded-xl overflow-hidden">
-        {fallbackSource ? (
+        {safeFallbackSource ? (
           <video
             ref={fallbackVideoRef}
             className="w-full h-full"
@@ -241,7 +255,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
             onPause={() => setIsPlaying(false)}
             onEnded={handleFallbackEnded}
           >
-            <source src={fallbackSource} type="video/mp4" />
+            <source src={safeFallbackSource} type="video/mp4" />
           </video>
         ) : (
           <div ref={containerRef} className="w-full h-full" />
@@ -253,7 +267,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
         {/* Progress Bar */}
         <div
           className="w-full h-1.5 bg-white/30 rounded-full mb-3 cursor-pointer overflow-hidden pointer-events-auto"
-          onClick={fallbackSource ? undefined : handleSeek}
+          onClick={handleSeek}
         >
           <div
             className="h-full bg-primary rounded-full transition-all"
