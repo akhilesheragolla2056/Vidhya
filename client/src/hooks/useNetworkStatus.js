@@ -47,7 +47,7 @@ export function useNetworkStatus() {
     effectiveType,
     isSlow,
     // Alias for backward compatibility
-    connectionType: isSlow ? 'slow' : 'fast',
+    connectionSpeed: isSlow ? 'slow' : 'fast',
   }
 }
 

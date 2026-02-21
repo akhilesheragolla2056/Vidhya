@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Clock, Users, Star, BookOpen } from 'lucide-react'
+import { Clock, Star } from 'lucide-react'
 import { formatNumber } from '../../utils/helpers'
 
 function CourseCard({ course, index = 0 }) {
@@ -108,30 +108,6 @@ function CourseCard({ course, index = 0 }) {
               
               <div className="text-lg font-bold text-text-primary">
                 {price === 0 ? 'Free' : `$${price}`}
-              </div>
-            </div>
-          </div>
-        </div>
-      </Link>
-    </motion.div>
-  )
-}
-                </span>
-                <span className="flex items-center gap-1">
-                  <BookOpen size={14} />
-                  {lessons} lessons
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <Star size={14} className="text-yellow-400" />
-                  {rating?.toFixed(1) || '4.5'}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users size={14} />
-                  {formatNumber(enrolledCount || 0)}
-                </span>
               </div>
             </div>
           </div>

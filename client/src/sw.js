@@ -1,5 +1,4 @@
 /// <reference lib="webworker" />
-/* eslint-disable no-restricted-globals */
 
 import { clientsClaim } from 'workbox-core'
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
@@ -128,7 +127,7 @@ self.addEventListener('notificationclick', (event) => {
   if (event.action === 'dismiss') return
 
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then((windowClients) => {
+    self.clients.matchAll({ type: 'window' }).then((windowClients) => {
       // Focus existing window if available
       for (const client of windowClients) {
         if (client.url === event.notification.data.url && 'focus' in client) {
@@ -136,8 +135,8 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       // Open new window
-      if (clients.openWindow) {
-        return clients.openWindow(event.notification.data.url)
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(event.notification.data.url)
       }
     })
   )

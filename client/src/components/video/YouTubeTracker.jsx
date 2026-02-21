@@ -83,7 +83,9 @@ export default function YouTubeTracker({ videoUrl, courseId, lessonId }) {
     return () => {
       try {
         playerRef.current && playerRef.current.destroy()
-      } catch {}
+      } catch {
+        // Ignore teardown errors from unloaded iframe instances.
+      }
     }
   }, [videoUrl])
 
@@ -102,7 +104,9 @@ export default function YouTubeTracker({ videoUrl, courseId, lessonId }) {
           sendProgress(current, pct)
           setLastSentAt(now)
         }
-      } catch {}
+      } catch {
+        // Ignore polling errors when player is transiently unavailable.
+      }
     }, 5000)
     return () => clearInterval(interval)
   }, [ready, duration, lastSentAt])

@@ -334,7 +334,6 @@ export default function CourseDetail() {
                 {embedUrl ? (
                   <div>
                     {/* YouTube tracker replaces raw iframe for real-time LMS */}
-                    {/* eslint-disable-next-line react/jsx-no-undef */}
                     <YouTubeTracker
                       videoUrl={currentLesson?.content?.videoUrl}
                       courseId={id}
