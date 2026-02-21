@@ -24,6 +24,7 @@ const mockTests = [
     questions: 10,
     duration: 15,
     passingScore: 70,
+    questionBank: 'general',
   },
   {
     id: 2,
@@ -33,6 +34,7 @@ const mockTests = [
     questions: 15,
     duration: 20,
     passingScore: 75,
+    questionBank: 'general',
   },
   {
     id: 3,
@@ -42,10 +44,42 @@ const mockTests = [
     questions: 12,
     duration: 18,
     passingScore: 70,
+    questionBank: 'general',
+  },
+  {
+    id: 4,
+    title: 'BSc Agriculture: Soil Science Mock Test',
+    subject: 'Agriculture',
+    difficulty: 'Beginner',
+    questions: 10,
+    duration: 20,
+    passingScore: 70,
+    questionBank: 'soilScience',
+  },
+  {
+    id: 5,
+    title: 'BSc Agriculture: Agronomy Mock Test',
+    subject: 'Agriculture',
+    difficulty: 'Intermediate',
+    questions: 10,
+    duration: 20,
+    passingScore: 75,
+    questionBank: 'agronomy',
+  },
+  {
+    id: 6,
+    title: 'BSc Agriculture: Plant Pathology Mock Test',
+    subject: 'Agriculture',
+    difficulty: 'Intermediate',
+    questions: 10,
+    duration: 22,
+    passingScore: 75,
+    questionBank: 'plantPathology',
   },
 ]
 
-const sampleQuestions = [
+const questionBanks = {
+  general: [
   {
     id: 1,
     question: 'What is Python primarily used for?',
@@ -121,7 +155,196 @@ const sampleQuestions = [
     options: ['exit', 'break', 'stop', 'end'],
     correctAnswer: 1,
   },
-]
+  ],
+  soilScience: [
+    {
+      id: 1,
+      question: 'Which horizon is generally rich in organic matter?',
+      options: ['C horizon', 'A horizon', 'R horizon', 'B horizon'],
+      correctAnswer: 1,
+    },
+    {
+      id: 2,
+      question: 'Sandy soils are known for:',
+      options: ['High water retention', 'Poor drainage', 'Quick drainage', 'High clay content'],
+      correctAnswer: 2,
+    },
+    {
+      id: 3,
+      question: 'The ideal pH range for most field crops is approximately:',
+      options: ['3.0-4.0', '6.0-7.5', '8.5-9.5', '9.5-10.5'],
+      correctAnswer: 1,
+    },
+    {
+      id: 4,
+      question: 'Which nutrient is represented by the letter P in NPK?',
+      options: ['Potassium', 'Phosphorus', 'Protein', 'Peroxide'],
+      correctAnswer: 1,
+    },
+    {
+      id: 5,
+      question: 'Soil testing is mainly done to:',
+      options: ['Count insects', 'Predict rainfall', 'Assess nutrient status', 'Increase salinity'],
+      correctAnswer: 2,
+    },
+    {
+      id: 6,
+      question: 'A loamy soil is preferred because it has:',
+      options: ['Only sand', 'Balanced sand, silt, and clay', 'Only clay', 'No pores'],
+      correctAnswer: 1,
+    },
+    {
+      id: 7,
+      question: 'Which practice improves soil organic carbon?',
+      options: ['Burning residues', 'Compost application', 'Over-tillage', 'Excess urea only'],
+      correctAnswer: 1,
+    },
+    {
+      id: 8,
+      question: 'Nitrogen deficiency commonly causes:',
+      options: ['Yellowing of older leaves', 'Purple flowers', 'Leaf wax increase', 'Root swelling'],
+      correctAnswer: 0,
+    },
+    {
+      id: 9,
+      question: 'Micronutrients are needed in:',
+      options: ['Very large quantities', 'Moderate quantities', 'Small quantities', 'No quantities'],
+      correctAnswer: 2,
+    },
+    {
+      id: 10,
+      question: 'Green manuring primarily helps to:',
+      options: ['Reduce sunlight', 'Increase soil fertility', 'Harden soil', 'Destroy all microbes'],
+      correctAnswer: 1,
+    },
+  ],
+  agronomy: [
+    {
+      id: 1,
+      question: 'Line sowing is preferred over broadcasting because it:',
+      options: ['Needs no seed', 'Improves crop geometry', 'Stops irrigation', 'Removes fertilizer need'],
+      correctAnswer: 1,
+    },
+    {
+      id: 2,
+      question: 'Critical crop-weed competition period is important because:',
+      options: ['Weeds help yield', 'Early weed competition cuts yield', 'Weeds store water', 'Weeds fix all nutrients'],
+      correctAnswer: 1,
+    },
+    {
+      id: 3,
+      question: 'Which irrigation method is most efficient in water use?',
+      options: ['Flood', 'Check basin', 'Drip', 'Furrow'],
+      correctAnswer: 2,
+    },
+    {
+      id: 4,
+      question: 'Seed treatment is done to:',
+      options: ['Color seeds only', 'Protect against seed-borne diseases', 'Increase seed size', 'Reduce germination'],
+      correctAnswer: 1,
+    },
+    {
+      id: 5,
+      question: 'Intercropping can help in:',
+      options: ['Lower biodiversity', 'Better resource use', 'No yield stability', 'Weed increase only'],
+      correctAnswer: 1,
+    },
+    {
+      id: 6,
+      question: 'A wider plant spacing usually causes:',
+      options: ['No sunlight', 'Lower air movement', 'Reduced plant population', 'Higher competition'],
+      correctAnswer: 2,
+    },
+    {
+      id: 7,
+      question: 'Mulching helps to:',
+      options: ['Increase evaporation', 'Conserve soil moisture', 'Increase erosion', 'Remove root growth'],
+      correctAnswer: 1,
+    },
+    {
+      id: 8,
+      question: 'Crop rotation mainly supports:',
+      options: ['Continuous pest buildup', 'Improved soil health', 'Single crop dominance', 'Nutrient mining'],
+      correctAnswer: 1,
+    },
+    {
+      id: 9,
+      question: 'The best time to irrigate many crops is:',
+      options: ['At random', 'At critical growth stages', 'Only after harvest', 'Never'],
+      correctAnswer: 1,
+    },
+    {
+      id: 10,
+      question: 'Integrated weed management combines:',
+      options: ['Only herbicides', 'Only hand weeding', 'Multiple control methods', 'No field practices'],
+      correctAnswer: 2,
+    },
+  ],
+  plantPathology: [
+    {
+      id: 1,
+      question: 'The disease triangle includes host, pathogen, and:',
+      options: ['Market', 'Environment', 'Machinery', 'Fertilizer'],
+      correctAnswer: 1,
+    },
+    {
+      id: 2,
+      question: 'Rusts in crops are typically caused by:',
+      options: ['Bacteria', 'Viruses', 'Fungi', 'Nematodes'],
+      correctAnswer: 2,
+    },
+    {
+      id: 3,
+      question: 'Seed treatment is a key step in:',
+      options: ['Disease prevention', 'Harvesting', 'Marketing', 'Irrigation design'],
+      correctAnswer: 0,
+    },
+    {
+      id: 4,
+      question: 'Removing infected crop residue is part of:',
+      options: ['Field sanitation', 'Over-irrigation', 'Monocropping', 'Late sowing'],
+      correctAnswer: 0,
+    },
+    {
+      id: 5,
+      question: 'Late blight in potato is favored by:',
+      options: ['Hot dry weather', 'Cool humid weather', 'Strong winds only', 'High soil pH only'],
+      correctAnswer: 1,
+    },
+    {
+      id: 6,
+      question: 'Integrated Disease Management emphasizes:',
+      options: ['One chemical only', 'Multiple compatible strategies', 'No monitoring', 'Only resistant seed'],
+      correctAnswer: 1,
+    },
+    {
+      id: 7,
+      question: 'A common sign of wilt disease is:',
+      options: ['Healthy turgor', 'Leaf curling and drooping', 'Blue pigmentation', 'Stronger stem only'],
+      correctAnswer: 1,
+    },
+    {
+      id: 8,
+      question: 'Crop rotation helps disease management by:',
+      options: ['Maintaining same host', 'Breaking pathogen cycles', 'Increasing humidity', 'Reducing sunlight'],
+      correctAnswer: 1,
+    },
+    {
+      id: 9,
+      question: 'Field scouting should be done:',
+      options: ['Only at harvest', 'Regularly during crop growth', 'Never in rainy season', 'Only after pesticide spray'],
+      correctAnswer: 1,
+    },
+    {
+      id: 10,
+      question: 'Which is a preventive practice?',
+      options: ['Using certified seed', 'Ignoring symptoms', 'Dense canopy always', 'Continuous same crop'],
+      correctAnswer: 0,
+    },
+  ],
+}
+
+const getQuestionsForTest = test => questionBanks[test?.questionBank] || questionBanks.general
 
 export default function MockTests() {
   const { isAuthenticated } = useSelector(state => state.user)
@@ -132,6 +355,7 @@ export default function MockTests() {
   const [answers, setAnswers] = useState({})
   const [timeLeft, setTimeLeft] = useState(0)
   const [showResults, setShowResults] = useState(false)
+  const activeQuestions = getQuestionsForTest(selectedTest)
 
   useEffect(() => {
     if (isTestActive && timeLeft > 0) {
@@ -160,7 +384,7 @@ export default function MockTests() {
   }
 
   const handleNextQuestion = () => {
-    if (currentQuestion < sampleQuestions.length - 1) {
+    if (currentQuestion < activeQuestions.length - 1) {
       setCurrentQuestion(currentQuestion + 1)
     }
   }
@@ -177,8 +401,8 @@ export default function MockTests() {
   }
 
   const calculateResults = () => {
-    const total = sampleQuestions.length
-    const correct = sampleQuestions.filter((q, i) => answers[i] === q.correctAnswer).length
+    const total = activeQuestions.length
+    const correct = activeQuestions.filter((q, i) => answers[i] === q.correctAnswer).length
     const percentage = Math.round((correct / total) * 100)
     const passed = percentage >= (selectedTest?.passingScore || 70)
     return { total, correct, percentage, passed }
@@ -238,7 +462,7 @@ export default function MockTests() {
 
             <div className="space-y-3 text-left mb-8">
               <h3 className="font-semibold text-text-primary mb-3">Review Answers</h3>
-              {sampleQuestions.map((q, i) => {
+              {activeQuestions.map((q, i) => {
                 const userAnswer = answers[i]
                 const isCorrect = userAnswer === q.correctAnswer
                 return (
@@ -300,8 +524,8 @@ export default function MockTests() {
   }
 
   if (isTestActive && selectedTest) {
-    const question = sampleQuestions[currentQuestion]
-    const progress = ((currentQuestion + 1) / sampleQuestions.length) * 100
+    const question = activeQuestions[currentQuestion]
+    const progress = ((currentQuestion + 1) / activeQuestions.length) * 100
 
     return (
       <div className="min-h-screen bg-surface-light py-8">
@@ -326,7 +550,7 @@ export default function MockTests() {
             <div className="p-8">
               <div className="mb-6">
                 <p className="text-sm text-text-muted mb-2">
-                  Question {currentQuestion + 1} of {sampleQuestions.length}
+                  Question {currentQuestion + 1} of {activeQuestions.length}
                 </p>
                 <h3 className="text-xl font-semibold text-text-primary">{question.question}</h3>
               </div>
@@ -368,7 +592,7 @@ export default function MockTests() {
                 >
                   Previous
                 </button>
-                {currentQuestion < sampleQuestions.length - 1 ? (
+                {currentQuestion < activeQuestions.length - 1 ? (
                   <button onClick={handleNextQuestion} className="btn-primary">
                     Next
                   </button>

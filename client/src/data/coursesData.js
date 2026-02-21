@@ -651,6 +651,329 @@ The UPSC CSE consists of three stages:
       },
     ],
   },
+  {
+    id: 'bsc-agri-soil-science',
+    title: 'BSc Agriculture: Fundamentals of Soil Science',
+    category: 'Academic Education',
+    subcategory: 'BSc Agriculture',
+    description:
+      'Build a strong foundation in soil formation, properties, fertility, and practical nutrient management for BSc Agriculture students.',
+    instructor: 'Dr. Kavya Reddy',
+    instructorAvatar: 'https://i.pravatar.cc/150?img=29',
+    difficulty: 'Beginner',
+    duration: '6 weeks',
+    totalLessons: 2,
+    rating: 4.8,
+    enrolledCount: 4820,
+    thumbnail: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?w=800&h=450&fit=crop',
+    skills: ['Soil Profile', 'Soil Texture', 'Soil Fertility', 'NPK Management'],
+    playlist: [
+      {
+        id: 'agri-soil-1',
+        title: 'Soil Formation and Soil Profile',
+        duration: '38 min',
+        videoUrl: 'https://www.youtube.com/watch?v=if29mjcdA5w',
+        notes: `# Soil Formation and Profile
+
+## Soil Formation Factors
+Soil is formed by the combined effect of:
+- Parent material
+- Climate
+- Organisms
+- Relief (topography)
+- Time
+
+## Soil Horizons
+A typical soil profile has:
+- **O Horizon**: Organic litter
+- **A Horizon**: Topsoil rich in humus
+- **B Horizon**: Subsoil with clay and minerals
+- **C Horizon**: Weathered parent material
+
+## Importance for Agriculture
+- Root growth depends on depth and structure
+- Water movement depends on texture and pores
+- Nutrient retention differs by horizon
+
+Understanding profile layers helps farmers decide tillage depth, fertilizer application, and irrigation planning.`,
+        mcqs: [
+          {
+            id: 'agri-soil-1-q1',
+            question: 'Which factor is NOT a classic soil-forming factor?',
+            options: ['Parent material', 'Climate', 'Market price', 'Time'],
+            correctAnswer: 2,
+            explanation: 'Market price is an economic factor, not a pedogenic soil-forming factor.',
+          },
+          {
+            id: 'agri-soil-1-q2',
+            question: 'Which horizon is usually called topsoil?',
+            options: ['O horizon', 'A horizon', 'B horizon', 'C horizon'],
+            correctAnswer: 1,
+            explanation: 'A horizon is the mineral topsoil and is generally rich in humus.',
+          },
+        ],
+      },
+      {
+        id: 'agri-soil-2',
+        title: 'Soil Fertility and Nutrient Management',
+        duration: '42 min',
+        videoUrl: 'https://www.youtube.com/watch?v=Q6e8f8vuvpA',
+        notes: `# Soil Fertility and Nutrient Management
+
+## Essential Nutrients
+- **Primary**: Nitrogen (N), Phosphorus (P), Potassium (K)
+- **Secondary**: Calcium, Magnesium, Sulfur
+- **Micronutrients**: Zinc, Iron, Boron, Copper, etc.
+
+## Soil Testing
+Soil test reports help determine:
+- pH
+- Organic carbon
+- Available N, P, K
+- Micronutrient deficiencies
+
+## Balanced Fertilization
+Principles:
+1. Right source
+2. Right dose
+3. Right time
+4. Right method
+
+## Sustainable Practices
+- Compost and FYM integration
+- Crop rotation with legumes
+- Green manuring
+- Site-specific nutrient management`,
+        mcqs: [
+          {
+            id: 'agri-soil-2-q1',
+            question: 'Which nutrient is primarily associated with vegetative growth?',
+            options: ['Nitrogen', 'Phosphorus', 'Potassium', 'Boron'],
+            correctAnswer: 0,
+            explanation: 'Nitrogen promotes leaf and stem growth.',
+          },
+          {
+            id: 'agri-soil-2-q2',
+            question: 'What is the best first step before fertilizer planning?',
+            options: ['Spray pesticide', 'Soil testing', 'Increase irrigation', 'Deep ploughing'],
+            correctAnswer: 1,
+            explanation: 'Soil testing provides the baseline nutrient status for proper planning.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'bsc-agri-agronomy',
+    title: 'BSc Agriculture: Principles of Agronomy',
+    category: 'Academic Education',
+    subcategory: 'BSc Agriculture',
+    description:
+      'Learn crop production principles, sowing methods, weed control, irrigation scheduling, and yield optimization.',
+    instructor: 'Prof. Nikhil Sharma',
+    instructorAvatar: 'https://i.pravatar.cc/150?img=34',
+    difficulty: 'Intermediate',
+    duration: '7 weeks',
+    totalLessons: 2,
+    rating: 4.7,
+    enrolledCount: 4260,
+    thumbnail: 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?w=800&h=450&fit=crop',
+    skills: ['Crop Geometry', 'Seed Rate', 'Irrigation', 'Weed Management'],
+    playlist: [
+      {
+        id: 'agri-agro-1',
+        title: 'Crop Establishment and Seed Management',
+        duration: '36 min',
+        videoUrl: 'https://www.youtube.com/watch?v=2x6V5i6YdNQ',
+        notes: `# Crop Establishment
+
+## Key Steps
+- Land preparation
+- Seed selection
+- Seed treatment
+- Sowing at optimum depth and spacing
+
+## Seed Rate and Spacing
+Correct seed rate avoids:
+- Excess competition
+- Poor plant population
+
+## Sowing Methods
+- Broadcasting
+- Line sowing
+- Dibbling
+- Transplanting
+
+Line sowing improves weed control and nutrient-use efficiency.`,
+        mcqs: [
+          {
+            id: 'agri-agro-1-q1',
+            question: 'Which sowing method improves row management most?',
+            options: ['Broadcasting', 'Line sowing', 'Random placement', 'Late transplanting'],
+            correctAnswer: 1,
+            explanation: 'Line sowing allows better spacing, interculture, and weed control.',
+          },
+          {
+            id: 'agri-agro-1-q2',
+            question: 'Why is seed treatment important?',
+            options: [
+              'To increase soil salinity',
+              'To protect seeds from early pests and diseases',
+              'To reduce germination',
+              'To harden rocks in the field',
+            ],
+            correctAnswer: 1,
+            explanation: 'Seed treatment protects germinating seeds from seed and soil-borne pathogens.',
+          },
+        ],
+      },
+      {
+        id: 'agri-agro-2',
+        title: 'Irrigation and Weed Management',
+        duration: '44 min',
+        videoUrl: 'https://www.youtube.com/watch?v=Jefh_dPbKag',
+        notes: `# Irrigation and Weed Management
+
+## Critical Crop Stages for Water
+Water stress at flowering and grain filling can significantly reduce yield.
+
+## Irrigation Methods
+- Surface irrigation
+- Sprinkler
+- Drip irrigation
+
+## Weed Competition Period
+The first 30-45 days in many crops are critical for weed control.
+
+## Integrated Weed Management
+- Preventive practices
+- Mechanical weeding
+- Chemical control
+- Mulching and crop rotation`,
+        mcqs: [
+          {
+            id: 'agri-agro-2-q1',
+            question: 'Which irrigation method is most water-efficient?',
+            options: ['Flooding', 'Furrow', 'Drip', 'Basin'],
+            correctAnswer: 2,
+            explanation: 'Drip irrigation applies water near roots and minimizes losses.',
+          },
+          {
+            id: 'agri-agro-2-q2',
+            question: 'Why is early weed control important?',
+            options: [
+              'Weeds help crop growth',
+              'Early competition reduces crop yield significantly',
+              'It delays crop maturity',
+              'It decreases nutrient uptake by weeds only',
+            ],
+            correctAnswer: 1,
+            explanation: 'Weeds competing early for light, water, and nutrients reduce final yield.',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'bsc-agri-plant-pathology',
+    title: 'BSc Agriculture: Basics of Plant Pathology',
+    category: 'Academic Education',
+    subcategory: 'BSc Agriculture',
+    description:
+      'Understand major crop diseases, disease cycles, diagnosis basics, and integrated disease management strategies.',
+    instructor: 'Dr. Meera Patil',
+    instructorAvatar: 'https://i.pravatar.cc/150?img=47',
+    difficulty: 'Intermediate',
+    duration: '6 weeks',
+    totalLessons: 2,
+    rating: 4.8,
+    enrolledCount: 3985,
+    thumbnail: 'https://images.unsplash.com/photo-1586773860418-d37222d8fce3?w=800&h=450&fit=crop',
+    skills: ['Disease Diagnosis', 'Pathogen Types', 'IPM', 'Field Scouting'],
+    playlist: [
+      {
+        id: 'agri-path-1',
+        title: 'Plant Disease Triangle and Symptoms',
+        duration: '34 min',
+        videoUrl: 'https://www.youtube.com/watch?v=R4K0dM5h4Sg',
+        notes: `# Plant Disease Basics
+
+## Disease Triangle
+Disease occurs when three factors coincide:
+- Susceptible host
+- Virulent pathogen
+- Favorable environment
+
+## Common Symptoms
+- Leaf spots
+- Wilting
+- Blight
+- Rust pustules
+- Root rot
+
+Accurate diagnosis should combine symptom observation with field history and environmental conditions.`,
+        mcqs: [
+          {
+            id: 'agri-path-1-q1',
+            question: 'Which element is NOT part of the disease triangle?',
+            options: ['Host', 'Pathogen', 'Environment', 'Market demand'],
+            correctAnswer: 3,
+            explanation: 'Disease triangle includes host, pathogen, and environment only.',
+          },
+          {
+            id: 'agri-path-1-q2',
+            question: 'Wilting in plants may be associated with:',
+            options: ['Only nutrient excess', 'Vascular pathogen infection', 'Always insect damage', 'Only pH shock'],
+            correctAnswer: 1,
+            explanation: 'Several vascular diseases block transport and can cause wilting.',
+          },
+        ],
+      },
+      {
+        id: 'agri-path-2',
+        title: 'Integrated Disease Management (IDM)',
+        duration: '40 min',
+        videoUrl: 'https://www.youtube.com/watch?v=2DlAqT3Jg7w',
+        notes: `# Integrated Disease Management
+
+## IDM Principles
+- Use resistant varieties
+- Seed treatment
+- Crop rotation
+- Field sanitation
+- Timely fungicide application based on threshold
+
+## Preventive Focus
+Prevention is more effective and cheaper than cure in most field crops.
+
+## Good Practices
+- Rogue infected plants early
+- Avoid excessive canopy humidity
+- Follow recommended spacing and irrigation timing`,
+        mcqs: [
+          {
+            id: 'agri-path-2-q1',
+            question: 'Which is a preventive disease management measure?',
+            options: ['Random pesticide use', 'Using resistant varieties', 'Ignoring symptoms', 'Dense sowing'],
+            correctAnswer: 1,
+            explanation: 'Resistant varieties reduce disease incidence from the start.',
+          },
+          {
+            id: 'agri-path-2-q2',
+            question: 'Crop rotation helps by:',
+            options: [
+              'Increasing host continuity',
+              'Breaking pathogen life cycles',
+              'Eliminating all weeds instantly',
+              'Reducing sunlight',
+            ],
+            correctAnswer: 1,
+            explanation: 'Rotation interrupts disease cycles by removing preferred hosts.',
+          },
+        ],
+      },
+    ],
+  },
 ]
 
 /**
