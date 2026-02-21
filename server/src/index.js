@@ -45,11 +45,25 @@ const parseAllowedOrigins = () => {
 }
 
 const allowedOrigins = parseAllowedOrigins()
+const isAllowedOrigin = origin => {
+  if (!origin) return true
+
+  const normalized = origin.replace(/\/$/, '')
+  if (allowedOrigins.includes(normalized)) return true
+
+  // Allow Vercel deployment domains to avoid preview/prod mismatch issues.
+  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalized)) return true
+
+  return false
+}
 
 // Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) return callback(null, true)
+      return callback(new Error(`Socket CORS blocked for origin: ${origin}`))
+    },
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -69,10 +83,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Allow server-to-server or same-origin requests with no Origin header.
-      if (!origin) return callback(null, true)
-
-      const normalized = origin.replace(/\/$/, '')
-      if (allowedOrigins.includes(normalized)) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true)
       }
 
