@@ -4,6 +4,7 @@ import courseReducer from './slices/courseSlice'
 import accessibilityReducer from './slices/accessibilitySlice'
 import classroomReducer from './slices/classroomSlice'
 import aiTutorReducer from './slices/aiTutorSlice'
+import gameReducer from './slices/gameSlice'
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     accessibility: accessibilityReducer,
     classroom: classroomReducer,
     aiTutor: aiTutorReducer,
+    game: gameReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

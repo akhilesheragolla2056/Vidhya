@@ -15,15 +15,24 @@ import {
   HelpCircle,
   Users,
   Award,
+  Puzzle,
+  Sparkles,
 } from 'lucide-react'
 import { logout } from '../../store/slices/userSlice'
 import Logo from '../ui/Logo'
+import { analyticsAPI } from '../../services/api'
 
 const navLinks = [
   {
     label: 'Home',
     path: '/',
     type: 'link',
+  },
+  {
+    label: 'Games',
+    path: '/games',
+    type: 'link',
+    isNew: true,
   },
   {
     label: 'AI Homework Assistants',
@@ -41,6 +50,9 @@ const navLinks = [
     type: 'dropdown',
     items: [
       { label: 'Science Lab', path: '/science-lab', icon: Beaker },
+      { label: 'Games Hub', path: '/games', icon: Sparkles },
+      { label: 'Math Sprint', path: '/games/math-sprint', icon: Puzzle },
+      { label: 'Science Quest', path: '/games/science-quest', icon: Sparkles },
       { label: 'My Certificates', path: '/certificates', icon: Award },
       { label: 'Study Chat', path: '/chat', icon: MessageSquare },
     ],
@@ -89,15 +101,29 @@ function DropdownMenu({ items, isOpen, onClose }) {
               <Link
                 key={item.label}
                 to={item.path}
-                onClick={onClose}
+                onClick={() => {
+                  if (item.path?.startsWith('/games')) {
+                    analyticsAPI.trackEvent('games_nav_click', {
+                      path: item.path,
+                      label: item.label,
+                      location: 'navbar_dropdown',
+                    }).catch(() => {})
+                  }
+                  onClose()
+                }}
                 className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors group"
               >
                 <Icon
                   size={20}
                   className="text-gray-400 group-hover:text-primary transition-colors"
                 />
-                <span className="text-sm font-medium text-text-primary group-hover:text-primary">
+                <span className="text-sm font-medium text-text-primary group-hover:text-primary flex items-center gap-2">
                   {item.label}
+                  {item.isNew ? (
+                    <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold animate-pulse">
+                      NEW
+                    </span>
+                  ) : null}
                 </span>
               </Link>
             )
@@ -117,11 +143,27 @@ function NavItem({ item }) {
     return (
       <Link
         to={item.path}
+        onClick={() => {
+          if (item.path?.startsWith('/games')) {
+            analyticsAPI.trackEvent('games_nav_click', {
+              path: item.path,
+              label: item.label,
+              location: 'navbar_top',
+            }).catch(() => {})
+          }
+        }}
         className={`px-4 py-2 text-sm font-semibold transition-colors rounded-md ${
           isActive ? 'text-primary' : 'text-text-primary hover:text-primary hover:bg-gray-50'
         }`}
       >
-        {item.label}
+        <span className="inline-flex items-center gap-2">
+          {item.label}
+          {item.isNew ? (
+            <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold animate-pulse">
+              NEW
+            </span>
+          ) : null}
+        </span>
       </Link>
     )
   }
@@ -133,6 +175,11 @@ function NavItem({ item }) {
         className="px-4 py-2 text-sm font-semibold text-text-primary hover:text-primary hover:bg-gray-50 rounded-md transition-colors flex items-center gap-1"
       >
         {item.label}
+        {item.isNew ? (
+          <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold animate-pulse ml-1">
+            NEW
+          </span>
+        ) : null}
         <ChevronDown
           size={16}
           className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
@@ -247,9 +294,25 @@ export default function Navbar() {
                   {item.type === 'link' ? (
                     <Link
                       to={item.path}
+                      onClick={() => {
+                        if (item.path?.startsWith('/games')) {
+                          analyticsAPI.trackEvent('games_nav_click', {
+                            path: item.path,
+                            label: item.label,
+                            location: 'navbar_mobile_top',
+                          }).catch(() => {})
+                        }
+                      }}
                       className="block py-3 px-4 text-text-primary font-semibold hover:bg-gray-50 rounded-md transition-colors"
                     >
-                      {item.label}
+                      <span className="inline-flex items-center gap-2">
+                        {item.label}
+                        {item.isNew ? (
+                          <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold animate-pulse">
+                            NEW
+                          </span>
+                        ) : null}
+                      </span>
                     </Link>
                   ) : (
                     <div>
@@ -261,10 +324,26 @@ export default function Navbar() {
                             <Link
                               key={subItem.label}
                               to={subItem.path}
+                              onClick={() => {
+                                if (subItem.path?.startsWith('/games')) {
+                                  analyticsAPI.trackEvent('games_nav_click', {
+                                    path: subItem.path,
+                                    label: subItem.label,
+                                    location: 'navbar_mobile_dropdown',
+                                  }).catch(() => {})
+                                }
+                              }}
                               className="flex items-center gap-3 py-2.5 px-4 text-text-secondary hover:bg-gray-50 rounded-md transition-colors"
                             >
                               <Icon size={18} className="text-primary" />
-                              <span className="font-medium">{subItem.label}</span>
+                              <span className="font-medium inline-flex items-center gap-2">
+                                {subItem.label}
+                                {subItem.isNew ? (
+                                  <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold animate-pulse">
+                                    NEW
+                                  </span>
+                                ) : null}
+                              </span>
                             </Link>
                           )
                         })}

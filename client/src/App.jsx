@@ -41,6 +41,9 @@ const TestTaker = lazy(() => import('./pages/TestTaker'))
 const TestResults = lazy(() => import('./pages/TestResults'))
 const ScienceLab = lazy(() => import('./pages/ScienceLab'))
 const Certificates = lazy(() => import('./pages/Certificates'))
+const MathSprint = lazy(() => import('./pages/MathSprint'))
+const ScienceQuest = lazy(() => import('./pages/ScienceQuest'))
+const Games = lazy(() => import('./pages/Games'))
 
 function App() {
   const { isOnline, connectionType } = useNetworkStatus()
@@ -179,6 +182,30 @@ function App() {
             <Route path="/tools/math" element={<MathHelper />} />
             <Route path="/tools/essay" element={<EssayHelper />} />
             <Route path="/tools/code" element={<CodeHelper />} />
+            <Route
+              path="/games"
+              element={
+                <ProtectedRoute>
+                  <Games />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/games/math-sprint"
+              element={
+                <ProtectedRoute>
+                  <MathSprint />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/games/science-quest"
+              element={
+                <ProtectedRoute>
+                  <ScienceQuest />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/chat"
               element={

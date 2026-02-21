@@ -6,6 +6,7 @@ import {
   BookOpen,
   FlaskConical,
   Bot,
+  Puzzle,
   BarChart3,
   Trophy,
   Target,
@@ -239,8 +240,10 @@ function Dashboard() {
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           <QuickAction icon={Bot} label="AI Tutor" to="/ai-tutor" color="primary" />
+          <QuickAction icon={Puzzle} label="Games Hub" to="/games" color="primary" />
           <QuickAction icon={BarChart3} label="My Progress" to="/profile" color="orange" />
           <QuickAction icon={FlaskConical} label="Science Lab" to="/science-lab" color="cyan" />
+          <QuickAction icon={Puzzle} label="Math Sprint" to="/games/math-sprint" color="primary" />
           <QuickAction icon={Award} label="Certificates" to="/certificates" color="pink" />
           <QuickAction icon={Target} label="Mock Tests" to="/mock-tests" color="orange" />
         </div>

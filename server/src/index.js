@@ -19,6 +19,7 @@ import classroomRoutes from './routes/classrooms.js'
 import labRoutes from './routes/labs.js'
 import analyticsRoutes from './routes/analytics.js'
 import progressRoutes from './routes/progress.js'
+import gameRoutes from './routes/games.js'
 
 // Middleware imports
 import { errorHandler } from './middleware/errorHandler.js'
@@ -110,6 +111,7 @@ app.use('/api/labs', labRoutes)
 app.use('/api/analytics', authMiddleware, analyticsRoutes)
 app.use('/api/progress', authMiddleware, progressRoutes)
 app.use('/api/tests', authMiddleware, progressRoutes)
+app.use('/api/games', authMiddleware, gameRoutes)
 
 // Socket.IO connection handling
 io.on('connection', socket => {

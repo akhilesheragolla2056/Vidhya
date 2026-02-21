@@ -128,3 +128,14 @@ export const analyticsAPI = {
   getLearningInsights: () => api.get('/analytics/insights'),
   getStudentStats: id => api.get(`/analytics/student/${id}`),
 }
+
+export const gamesAPI = {
+  getDailyMissions: () => api.get('/games/daily-missions'),
+  updateMissionProgress: (missionId, amount = 1) =>
+    api.post(`/games/daily-missions/${missionId}/progress`, { amount }),
+  startSession: payload => api.post('/games/sessions/start', payload),
+  submitSession: (sessionId, payload) => api.post(`/games/sessions/${sessionId}/submit`, payload),
+  getStats: () => api.get('/games/stats'),
+  getLeaderboard: (gameType, limit = 10) =>
+    api.get('/games/leaderboard', { params: { gameType, limit } }),
+}
