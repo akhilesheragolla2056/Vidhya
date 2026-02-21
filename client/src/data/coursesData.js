@@ -575,7 +575,7 @@ Use meaningful tags:
         id: 'upsc-1',
         title: 'Understanding UPSC Exam Pattern',
         duration: '40 min',
-        videoUrl: 'https://www.youtube.com/watch?v=CkgF0vxudRw',
+        videoUrl: 'https://youtu.be/G5STfWKbF0E?si=11dafKEx5o24yNBT',
         notes: `# UPSC Civil Services Examination
 
 ## Exam Structure:
@@ -672,7 +672,7 @@ The UPSC CSE consists of three stages:
         id: 'agri-soil-1',
         title: 'Soil Formation and Soil Profile',
         duration: '38 min',
-        videoUrl: 'https://www.youtube.com/watch?v=if29mjcdA5w',
+        videoUrl: 'https://youtu.be/voWgADFhht8?si=WcbX0K4oUE6UcoYu',
         notes: `# Soil Formation and Profile
 
 ## Soil Formation Factors
@@ -717,7 +717,7 @@ Understanding profile layers helps farmers decide tillage depth, fertilizer appl
         id: 'agri-soil-2',
         title: 'Soil Fertility and Nutrient Management',
         duration: '42 min',
-        videoUrl: 'https://www.youtube.com/watch?v=Q6e8f8vuvpA',
+        videoUrl: 'https://youtu.be/e-FXzFhk4Ag?si=j9gFaaBfDicSVCRe',
         notes: `# Soil Fertility and Nutrient Management
 
 ## Essential Nutrients
@@ -784,7 +784,7 @@ Principles:
         id: 'agri-agro-1',
         title: 'Crop Establishment and Seed Management',
         duration: '36 min',
-        videoUrl: 'https://www.youtube.com/watch?v=2x6V5i6YdNQ',
+        videoUrl: 'https://youtu.be/8ulpy_GFLDk?si=5Zdqe8UQVuEOCd31',
         notes: `# Crop Establishment
 
 ## Key Steps
@@ -831,7 +831,7 @@ Line sowing improves weed control and nutrient-use efficiency.`,
         id: 'agri-agro-2',
         title: 'Irrigation and Weed Management',
         duration: '44 min',
-        videoUrl: 'https://www.youtube.com/watch?v=Jefh_dPbKag',
+        videoUrl: 'https://youtu.be/JTdRho4j3qw?si=HTk3a7BZ6lI4KsJ6',
         notes: `# Irrigation and Weed Management
 
 ## Critical Crop Stages for Water
@@ -894,8 +894,8 @@ The first 30-45 days in many crops are critical for weed control.
       {
         id: 'agri-path-1',
         title: 'Plant Disease Triangle and Symptoms',
-        duration: '34 min',
-        videoUrl: 'https://www.youtube.com/watch?v=R4K0dM5h4Sg',
+        duration: '14:31 min',
+        videoUrl: 'https://youtu.be/ZM2X-XBRKHM?si=OHSK-5SSZtIZ4Zbl',
         notes: `# Plant Disease Basics
 
 ## Disease Triangle
@@ -932,8 +932,8 @@ Accurate diagnosis should combine symptom observation with field history and env
       {
         id: 'agri-path-2',
         title: 'Integrated Disease Management (IDM)',
-        duration: '40 min',
-        videoUrl: 'https://www.youtube.com/watch?v=2DlAqT3Jg7w',
+        duration: '27:49 min',
+        videoUrl: 'https://youtu.be/s23Ti2yhfqY?si=wQwzXZFy87kzUy0f',
         notes: `# Integrated Disease Management
 
 ## IDM Principles
