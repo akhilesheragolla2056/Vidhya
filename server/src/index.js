@@ -27,10 +27,29 @@ import { authMiddleware } from './middleware/auth.js'
 const app = express()
 const httpServer = createServer(app)
 
+const parseAllowedOrigins = () => {
+  const configured = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+
+  const clientUrl = (process.env.CLIENT_URL || '').trim()
+  if (clientUrl) configured.push(clientUrl)
+
+  // Keep local dev URLs as fallback.
+  if (configured.length === 0) {
+    configured.push('http://localhost:5173', 'http://localhost:3000')
+  }
+
+  return Array.from(new Set(configured.map(origin => origin.replace(/\/$/, ''))))
+}
+
+const allowedOrigins = parseAllowedOrigins()
+
 // Socket.IO setup
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -48,7 +67,17 @@ app.use(helmet())
 app.use(compression())
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Allow server-to-server or same-origin requests with no Origin header.
+      if (!origin) return callback(null, true)
+
+      const normalized = origin.replace(/\/$/, '')
+      if (allowedOrigins.includes(normalized)) {
+        return callback(null, true)
+      }
+
+      return callback(new Error(`CORS blocked for origin: ${origin}`))
+    },
     credentials: true,
   })
 )
@@ -150,6 +179,7 @@ console.log('PORT:', PORT)
 console.log('MONGODB_URI exists:', !!rawMongoUri)
 console.log('MONGODB_URI value:', MONGODB_URI ? MONGODB_URI.substring(0, 20) + '...' : 'undefined')
 console.log('CLIENT_URL:', process.env.CLIENT_URL)
+console.log('CORS_ORIGINS:', allowedOrigins)
 
 mongoose
   .connect(MONGODB_URI)
