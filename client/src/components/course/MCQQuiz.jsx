@@ -7,7 +7,7 @@ import { CheckCircle2, XCircle, Award, RotateCcw, ChevronRight, HelpCircle } fro
  * MCQQuiz Component
  * Interactive multiple-choice quiz with instant feedback and scoring
  */
-export default function MCQQuiz({ mcqs, lessonId, courseId, onComplete, previousScore }) {
+export default function MCQQuiz({ mcqs, lessonId, courseId: _courseId, onComplete, previousScore }) {
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [selectedAnswers, setSelectedAnswers] = useState({})
   const [showResult, setShowResult] = useState(false)
@@ -134,10 +134,10 @@ export default function MCQQuiz({ mcqs, lessonId, courseId, onComplete, previous
               </button>
 
               {passed && (
-                <button className="flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-xl font-semibold transition-colors">
-                  <Award size={18} />
-                  View Certificate
-                </button>
+                <p className="flex max-w-sm items-center gap-2 text-left text-sm text-emerald-700">
+                  <Award size={18} className="shrink-0" />
+                  Pass every lesson quiz to unlock your course certificate. Videos are optional for certification.
+                </p>
               )}
             </div>
           </div>

@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
 import {
   Play,
   CheckCircle2,
@@ -17,8 +16,9 @@ import {
   Sparkles,
   Download,
   ClipboardList,
+  Award,
 } from 'lucide-react'
-import coursesAPI, { lessonsAPI } from '../services/api'
+import api, { coursesAPI, lessonsAPI } from '../services/api'
 import YouTubeTracker from '../components/video/YouTubeTracker'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
@@ -68,31 +68,58 @@ export default function CourseDetail() {
 
   const [selectedModule, setSelectedModule] = useState(0)
   const [selectedLesson, setSelectedLesson] = useState(0)
+  const currentUserId = currentUser?._id || currentUser?.id
 
   const { courseQuery, progressQuery } = useCourseData(id, isAuthenticated)
   const testsQuery = useQuery({
     queryKey: ['courseTests', id],
     queryFn: async () => {
-      const { default: api } = await import('../services/api')
       const res = await api.get(`/tests/course/${id}`)
       return res.data?.data || []
     },
     enabled: isAuthenticated && !!id,
   })
 
+  const attemptsQuery = useQuery({
+    queryKey: ['courseTestAttempts', id],
+    queryFn: async () => {
+      const res = await api.get(`/tests/attempts/${id}`)
+      return Array.isArray(res.data?.data) ? res.data.data : []
+    },
+    enabled: isAuthenticated && !!id,
+  })
+
+  const overallProgressQuery = useQuery({
+    queryKey: ['learningProgress', currentUserId],
+    queryFn: async () => {
+      const res = await api.get(`/progress/user/${currentUserId}`)
+      return { data: res.data?.data || null, summary: res.data?.summary || {} }
+    },
+    enabled: !!currentUserId,
+  })
+
   const enrollMutation = useMutation({
     mutationFn: () => coursesAPI.enroll(id),
     onSuccess: () => {
-      queryClient.invalidateQueries(['course', id])
-      queryClient.invalidateQueries(['courseProgress', id])
+      queryClient.invalidateQueries({ queryKey: ['course', id] })
+      queryClient.invalidateQueries({ queryKey: ['courseProgress', id] })
     },
   })
 
   const markCompleteMutation = useMutation({
     mutationFn: lessonId => lessonsAPI.complete(id, lessonId),
     onSuccess: () => {
-      queryClient.invalidateQueries(['courseProgress', id])
-      queryClient.invalidateQueries(['course', id])
+      queryClient.invalidateQueries({ queryKey: ['courseProgress', id] })
+      queryClient.invalidateQueries({ queryKey: ['course', id] })
+      queryClient.invalidateQueries({ queryKey: ['learningProgress', currentUserId] })
+    },
+  })
+
+  const certificateMutation = useMutation({
+    mutationFn: () => api.post('/progress/generate', { courseId: id }),
+    onSuccess: response => {
+      const certificate = response.data?.data
+      if (certificate?._id) navigate(`/certificates/${certificate._id}`)
     },
   })
 
@@ -108,6 +135,12 @@ export default function CourseDetail() {
     course?.modules?.reduce((acc, mod) => acc + (mod.lessons?.length || 0), 0) || 0
   const completedCount = progress?.completedLessons?.length || 0
   const progressPercent = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0
+  const courseTracking = overallProgressQuery.data?.data?.enrolledCourses?.find(enrollment => {
+    const trackedCourseId = enrollment.course?._id || enrollment.course
+    return String(trackedCourseId) === String(id)
+  })
+  const videosCompletion = courseTracking?.courseCompletionPercentage || 0
+  const hasPassedCourseTest = (attemptsQuery.data || []).some(attempt => attempt.isPassed)
 
   const handleEnroll = () => {
     if (!isAuthenticated) {
@@ -191,14 +224,19 @@ export default function CourseDetail() {
               <p className="text-lg text-text-secondary mb-4">{course.description}</p>
 
               <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
-                <div className="flex items-center gap-1">
-                  <Star size={16} className="text-yellow-500 fill-yellow-500" />
-                  <span className="font-semibold">{course.rating}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Users size={16} />
-                  <span>{course.students?.toLocaleString() || 0} students</span>
-                </div>
+                {course.stats?.rating > 0 && course.stats?.reviewsCount > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Star size={16} className="fill-yellow-500 text-yellow-500" />
+                    <span className="font-semibold">{course.stats.rating.toFixed(1)}</span>
+                    <span>({course.stats.reviewsCount} reviews)</span>
+                  </div>
+                )}
+                {course.stats?.enrollments > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Users size={16} />
+                    <span>{course.stats.enrollments.toLocaleString()} learners</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1">
                   <Clock size={16} />
                   <span>{course.duration}</span>
@@ -236,6 +274,30 @@ export default function CourseDetail() {
                   className="bg-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
+              </div>
+              <div className="mt-5 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="flex items-center gap-2 font-semibold text-amber-950">
+                    <Award size={18} /> Course certificate
+                  </h2>
+                  <p className="mt-1 text-sm text-amber-900">
+                    Video lessons: {videosCompletion}% · Course test: {hasPassedCourseTest ? 'passed' : 'not passed'}
+                  </p>
+                  {certificateMutation.isError && (
+                    <p role="alert" className="mt-2 text-sm text-red-700">
+                      {certificateMutation.error?.response?.data?.message || 'Certificate could not be issued.'}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => certificateMutation.mutate()}
+                  disabled={certificateMutation.isPending || videosCompletion < 80 || !hasPassedCourseTest}
+                  className="shrink-0 rounded-lg bg-amber-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={videosCompletion < 80 ? 'Complete at least 80% of the course videos first.' : !hasPassedCourseTest ? 'Pass a course test with at least 70% first.' : undefined}
+                >
+                  {certificateMutation.isPending ? 'Issuing…' : 'View certificate'}
+                </button>
               </div>
             </div>
           )}
@@ -373,11 +435,35 @@ export default function CourseDetail() {
                         {isLessonCompleted(currentLesson.id) ? 'Completed' : 'Mark as Complete'}
                       </button>
 
-                      {currentLesson.content?.resources && (
-                        <button className="btn-secondary flex items-center gap-2">
-                          <Download size={18} />
-                          Download Resources
-                        </button>
+                      {(currentLesson.resources || currentLesson.content?.resources || []).length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {(currentLesson.resources || currentLesson.content?.resources || []).map((resource, index) => {
+                            const resourceUrl = typeof resource === 'string' ? resource : resource.url
+                            const resourceTitle = typeof resource === 'string'
+                              ? `Resource ${index + 1}`
+                              : resource.title || `Resource ${index + 1}`
+                            if (!resourceUrl) return null
+                            let safeResourceUrl
+                            try {
+                              const parsedUrl = new URL(resourceUrl, window.location.origin)
+                              if (['http:', 'https:'].includes(parsedUrl.protocol)) safeResourceUrl = parsedUrl.href
+                            } catch {
+                              return null
+                            }
+                            if (!safeResourceUrl) return null
+                            return (
+                              <a
+                                key={`${resourceUrl}-${index}`}
+                                href={safeResourceUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn-secondary inline-flex items-center gap-2"
+                              >
+                                <Download size={18} /> {resourceTitle}
+                              </a>
+                            )
+                          })}
+                        </div>
                       )}
                     </div>
                   )}

@@ -1,7 +1,7 @@
 import PropTypes from 'prop-types'
 import { motion } from 'framer-motion'
 import { Zap } from 'lucide-react'
-import { calculateLevel, calculateXPForLevel } from '../../utils/helpers'
+import { calculateLevel } from '../../utils/helpers'
 
 function XPProgressBar({ 
   totalXP, 

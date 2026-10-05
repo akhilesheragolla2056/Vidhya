@@ -40,6 +40,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globIgnores: ['**/three-core-*.js', '**/react-three-fiber-*.js', '**/react-three-drei-*.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/api\.lumina\.app\/.*/i,
@@ -56,6 +57,18 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('/node_modules/three/')) return 'three-core'
+          if (id.includes('/node_modules/@react-three/fiber/')) return 'react-three-fiber'
+          if (id.includes('/node_modules/@react-three/drei/')) return 'react-three-drei'
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

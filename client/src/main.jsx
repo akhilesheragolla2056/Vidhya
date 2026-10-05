@@ -14,7 +14,7 @@ if ('serviceWorker' in navigator) {
       .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => registration.update())
       .catch((error) => {
-        console.log('Service Worker registration failed:', error)
+        console.warn('Service worker registration failed:', error)
       })
   })
 }

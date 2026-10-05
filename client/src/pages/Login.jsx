@@ -1,12 +1,19 @@
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, BookOpen, Users } from 'lucide-react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles, BookOpen, Users, GraduationCap, HeartHandshake, Presentation } from 'lucide-react'
 import { login, clearError } from '../store/slices/userSlice'
 import Logo from '../components/ui/Logo'
 import { startOAuth } from '../services/api'
 
 function Login() {
+  const { role: requestedRole } = useParams()
+  const roles = [
+    { id: 'student', label: 'Student', icon: GraduationCap, description: 'Courses and labs' },
+    { id: 'parent', label: 'Parent', icon: HeartHandshake, description: 'Learning progress' },
+    { id: 'teacher', label: 'Teacher', icon: Presentation, description: 'Classrooms and teaching' },
+  ]
+  const role = roles.some(item => item.id === requestedRole) ? requestedRole : 'student'
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -15,10 +22,16 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isLoading, error } = useSelector(state => state.user)
+  const displayedError = error || location.state?.error
 
   const handleSocialLogin = provider => {
-    startOAuth(provider)
+    const returnPath = location.state?.from
+    if (returnPath) sessionStorage.setItem('postAuthRedirect', returnPath)
+    else sessionStorage.removeItem('postAuthRedirect')
+    sessionStorage.setItem('expectedAuthRole', role)
+    startOAuth(provider, undefined, role)
   }
 
   const handleChange = e => {
@@ -37,11 +50,12 @@ function Login() {
       login({
         email: formData.email,
         password: formData.password,
+        role,
       })
     )
 
     if (login.fulfilled.match(result)) {
-      navigate('/dashboard')
+      navigate(location.state?.from || '/dashboard', { replace: true })
     }
   }
 
@@ -53,14 +67,30 @@ function Login() {
             <Link to="/" className="flex items-center mb-10">
               <Logo size="lg" />
             </Link>
-            <h1 className="text-4xl font-bold text-text-primary mb-2">Welcome back</h1>
-            <p className="text-lg text-text-secondary">Sign in to continue your learning journey</p>
+            <h1 className="text-4xl font-bold text-text-primary mb-2">{role === 'teacher' ? 'Teacher sign in' : role === 'parent' ? 'Parent sign in' : 'Student sign in'}</h1>
+            <p className="text-lg text-text-secondary">{role === 'teacher' ? 'Open your teaching workspace and live classrooms.' : role === 'parent' ? 'Follow learning progress and support your learner.' : 'Continue your courses, quizzes, and immersive labs.'}</p>
           </div>
 
-          {error && (
+          <div className="mb-7 grid grid-cols-3 gap-2 rounded-2xl border border-gray-200 bg-white p-2" role="group" aria-label="Choose account type">
+            {roles.map(({ id, label, icon: Icon, description }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => navigate(`/login/${id}`, { state: location.state, replace: true })}
+                aria-pressed={role === id}
+                className={`flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl px-2 py-3 text-center transition ${role === id ? 'bg-primary text-white shadow-sm' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary'}`}
+              >
+                <Icon size={21} />
+                <span className="text-sm font-semibold">{label}</span>
+                <span className={`text-[10px] leading-tight ${role === id ? 'text-white/80' : 'text-text-muted'}`}>{description}</span>
+              </button>
+            ))}
+          </div>
+
+          {displayedError && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-red-500"></div>
-              {error}
+              {displayedError}
             </div>
           )}
 
@@ -209,7 +239,7 @@ function Login() {
           <p className="mt-10 text-center text-text-secondary">
             Don't have an account?{' '}
             <Link
-              to="/signup"
+              to={`/signup?role=${role}`}
               className="font-semibold text-primary hover:text-primary-dark transition-colors"
             >
               Sign up free

@@ -7,7 +7,7 @@ import ReactMarkdown from 'react-markdown'
  * TheoryNotes Component
  * Display formatted theory notes with markdown support
  */
-export default function TheoryNotes({ notes, lessonId, courseId, onMarkRead, isRead }) {
+export default function TheoryNotes({ notes, lessonId, courseId: _courseId, onMarkRead, isRead }) {
   const [showNotes, setShowNotes] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
 
@@ -103,32 +103,32 @@ export default function TheoryNotes({ notes, lessonId, courseId, onMarkRead, isR
         >
           <ReactMarkdown
             components={{
-              h1: ({ node, ...props }) => (
+              h1: ({ node: _node, ...props }) => (
                 <h1 className="text-3xl font-bold text-text-primary mb-4 mt-6" {...props} />
               ),
-              h2: ({ node, ...props }) => (
+              h2: ({ node: _node, ...props }) => (
                 <h2 className="text-2xl font-bold text-text-primary mb-3 mt-5" {...props} />
               ),
-              h3: ({ node, ...props }) => (
+              h3: ({ node: _node, ...props }) => (
                 <h3 className="text-xl font-semibold text-text-primary mb-2 mt-4" {...props} />
               ),
-              p: ({ node, ...props }) => (
+              p: ({ node: _node, ...props }) => (
                 <p className="text-text-secondary leading-relaxed mb-4" {...props} />
               ),
-              ul: ({ node, ...props }) => (
+              ul: ({ node: _node, ...props }) => (
                 <ul
                   className="list-disc list-inside space-y-2 mb-4 text-text-secondary"
                   {...props}
                 />
               ),
-              ol: ({ node, ...props }) => (
+              ol: ({ node: _node, ...props }) => (
                 <ol
                   className="list-decimal list-inside space-y-2 mb-4 text-text-secondary"
                   {...props}
                 />
               ),
-              li: ({ node, ...props }) => <li className="ml-4" {...props} />,
-              code: ({ node, inline, ...props }) =>
+              li: ({ node: _node, ...props }) => <li className="ml-4" {...props} />,
+              code: ({ node: _node, inline, ...props }) =>
                 inline ? (
                   <code
                     className="px-1.5 py-0.5 bg-gray-100 text-primary rounded text-sm font-mono"
@@ -140,18 +140,18 @@ export default function TheoryNotes({ notes, lessonId, courseId, onMarkRead, isR
                     {...props}
                   />
                 ),
-              pre: ({ node, ...props }) => <pre className="mb-4" {...props} />,
-              blockquote: ({ node, ...props }) => (
+              pre: ({ node: _node, ...props }) => <pre className="mb-4" {...props} />,
+              blockquote: ({ node: _node, ...props }) => (
                 <blockquote
                   className="border-l-4 border-primary pl-4 italic text-text-secondary my-4"
                   {...props}
                 />
               ),
-              strong: ({ node, ...props }) => (
+              strong: ({ node: _node, ...props }) => (
                 <strong className="font-bold text-text-primary" {...props} />
               ),
-              em: ({ node, ...props }) => <em className="italic" {...props} />,
-              a: ({ node, ...props }) => <a className="text-primary hover:underline" {...props} />,
+              em: ({ node: _node, ...props }) => <em className="italic" {...props} />,
+              a: ({ node: _node, ...props }) => <a className="text-primary hover:underline" {...props} />,
             }}
           >
             {notes}

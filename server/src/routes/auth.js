@@ -53,12 +53,6 @@ const initializeClients = () => {
   const TWITTER_REDIRECT_URI =
     process.env.TWITTER_CALLBACK_URL || 'http://localhost:5000/api/auth/twitter/callback'
 
-  console.log('=== Google OAuth Initialization ===')
-  console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'SET' : 'NOT SET')
-  console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? 'SET' : 'NOT SET')
-  console.log('GOOGLE_CALLBACK_URL:', GOOGLE_REDIRECT_URI)
-  console.log('=====================================')
-
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     googleClient = new OAuth2Client({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -80,22 +74,82 @@ const TWITTER_REDIRECT_URI =
   process.env.TWITTER_CALLBACK_URL || 'http://localhost:5000/api/auth/twitter/callback'
 
 const twitterAuthStore = new Map()
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000
 
-const createStateParam = redirect => Buffer.from(JSON.stringify({ redirect })).toString('base64url')
+const getClientOrigin = () => {
+  try {
+    return new URL(CLIENT_URL).origin
+  } catch {
+    return 'http://localhost:5173'
+  }
+}
+
+const resolveOAuthRedirect = redirect => {
+  const fallback = `${getClientOrigin()}/auth/callback`
+  try {
+    const target = new URL(typeof redirect === 'string' ? redirect : fallback)
+    const configuredOrigins = [getClientOrigin(), ...(process.env.OAUTH_REDIRECT_ORIGINS || '').split(',')]
+      .map(origin => {
+        try {
+          return new URL(origin.trim()).origin
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+    const isConfiguredOrigin = configuredOrigins.includes(target.origin)
+    const isVercelOrigin = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(target.origin)
+    const isLocalDevelopmentOrigin = process.env.NODE_ENV !== 'production' &&
+      ['localhost', '127.0.0.1'].includes(target.hostname)
+    if ((!isConfiguredOrigin && !isVercelOrigin && !isLocalDevelopmentOrigin) || target.pathname !== '/auth/callback') {
+      return fallback
+    }
+    return `${target.origin}/auth/callback`
+  } catch {
+    return fallback
+  }
+}
+
+const validOAuthRole = role => ['student', 'teacher', 'parent'].includes(role) ? role : 'student'
+
+const createStateParam = (redirect, role) => {
+  const payload = Buffer.from(JSON.stringify({
+    redirect: resolveOAuthRedirect(redirect),
+    role: validOAuthRole(role),
+    expiresAt: Date.now() + OAUTH_STATE_TTL_MS,
+    nonce: crypto.randomBytes(16).toString('hex'),
+  })).toString('base64url')
+  const secret = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || 'your-secret-key'
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url')
+  return `${payload}.${signature}`
+}
 
 const buildRedirectTarget = stateParam => {
   try {
-    if (!stateParam) return `${CLIENT_URL}/auth/callback`
-    const parsed = JSON.parse(Buffer.from(stateParam, 'base64url').toString())
-    return parsed.redirect || `${CLIENT_URL}/auth/callback`
-  } catch (err) {
-    return `${CLIENT_URL}/auth/callback`
+    if (typeof stateParam !== 'string') return null
+    const [payload, signature] = stateParam.split('.')
+    if (!payload || !signature) return null
+    const secret = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || 'your-secret-key'
+    const expectedSignature = crypto.createHmac('sha256', secret).update(payload).digest()
+    const receivedSignature = Buffer.from(signature, 'base64url')
+    if (
+      expectedSignature.length !== receivedSignature.length ||
+      !crypto.timingSafeEqual(expectedSignature, receivedSignature)
+    ) return null
+
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (!Number.isFinite(parsed.expiresAt) || parsed.expiresAt < Date.now()) return null
+    const redirect = resolveOAuthRedirect(parsed.redirect)
+    if (redirect !== parsed.redirect) return null
+    return { redirect, role: validOAuthRole(parsed.role) }
+  } catch {
+    return null
   }
 }
 
 const generateRandomPassword = () => crypto.randomBytes(32).toString('hex')
 
-const upsertOAuthUser = async ({ email, name, avatar, provider, providerId }) => {
+const upsertOAuthUser = async ({ email, name, avatar, provider, providerId, defaultRole = 'student' }) => {
   const socialKey = `socialConnections.${provider}`
   let user = await User.findOne({
     $or: [{ email }, { [socialKey]: providerId }],
@@ -106,6 +160,7 @@ const upsertOAuthUser = async ({ email, name, avatar, provider, providerId }) =>
       name: name || email.split('@')[0],
       email,
       password: generateRandomPassword(),
+      role: validOAuthRole(defaultRole),
       avatar,
       socialConnections: {
         [provider]: providerId,
@@ -175,15 +230,15 @@ router.get('/google', async (req, res, next) => {
     }
 
     const googleRedirectUri = getGoogleRedirectUri(req)
-    console.log('Google OAuth request redirect_uri:', googleRedirectUri)
-    const redirectTarget = req.query.redirect || `${CLIENT_URL}/auth/callback`
-    const state = createStateParam(redirectTarget)
+    const redirectTarget = resolveOAuthRedirect(req.query.redirect)
+    const state = createStateParam(redirectTarget, req.query.role)
 
     const authUrl = googleClient.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
       redirect_uri: googleRedirectUri,
       scope: [
+        'openid',
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
       ],
@@ -200,7 +255,9 @@ router.get('/google', async (req, res, next) => {
 // @desc    Handle Google OAuth callback
 // @access  Public
 router.get('/google/callback', async (req, res, next) => {
-  const target = buildRedirectTarget(req.query.state)
+  const oauthState = buildRedirectTarget(req.query.state)
+  const target = oauthState?.redirect
+  if (!target) return res.redirect(`${getClientOrigin()}/auth/callback?error=invalid_oauth_session`)
 
   try {
     initializeClients()
@@ -216,26 +273,35 @@ router.get('/google/callback', async (req, res, next) => {
 
     const googleRedirectUri = getGoogleRedirectUri(req)
     const { tokens } = await googleClient.getToken({ code, redirect_uri: googleRedirectUri })
+    if (!tokens.id_token) {
+      throw new ApiError(502, 'Google did not return an identity token')
+    }
     const ticket = await googleClient.verifyIdToken({
       idToken: tokens.id_token,
       audience: process.env.GOOGLE_CLIENT_ID,
     })
 
     const payload = ticket.getPayload()
+    if (!payload?.sub || !payload.email || payload.email_verified === false) {
+      throw new ApiError(401, 'Google account identity could not be verified')
+    }
     const user = await upsertOAuthUser({
       email: payload.email,
       name: payload.name,
       avatar: payload.picture,
       provider: 'google',
       providerId: payload.sub,
+      defaultRole: oauthState.role,
     })
+
+    if (user.role !== oauthState.role && user.role !== 'admin') {
+      return res.redirect(`${target}?error=role_mismatch&actualRole=${encodeURIComponent(user.role)}`)
+    }
 
     const token = generateToken(user._id)
     return res.redirect(`${target}?token=${token}`)
   } catch (error) {
-    console.error('Google OAuth error:', error)
-    const message = typeof error?.message === 'string' ? error.message : 'Google login failed'
-    return res.redirect(`${target}?error=${encodeURIComponent(message)}`)
+    return res.redirect(`${target}?error=google_login_failed`)
   }
 })
 
@@ -250,7 +316,10 @@ router.get('/twitter', async (req, res, next) => {
       throw new ApiError(503, 'Twitter login not configured')
     }
 
-    const redirectTarget = req.query.redirect || `${CLIENT_URL}/auth/callback`
+    const redirectTarget = resolveOAuthRedirect(req.query.redirect)
+    for (const [storedState, entry] of twitterAuthStore) {
+      if (Date.now() - entry.createdAt > OAUTH_STATE_TTL_MS) twitterAuthStore.delete(storedState)
+    }
     const { url, codeVerifier, state } = twitterClient.generateOAuth2AuthLink(
       TWITTER_REDIRECT_URI,
       { scope: ['tweet.read', 'users.read'] }
@@ -259,6 +328,7 @@ router.get('/twitter', async (req, res, next) => {
     twitterAuthStore.set(state, {
       codeVerifier,
       redirect: redirectTarget,
+      role: validOAuthRole(req.query.role),
       createdAt: Date.now(),
     })
 
@@ -274,7 +344,8 @@ router.get('/twitter', async (req, res, next) => {
 router.get('/twitter/callback', async (req, res, next) => {
   const state = req.query.state
   const entry = state ? twitterAuthStore.get(state) : null
-  const target = entry?.redirect || `${CLIENT_URL}/auth/callback`
+  const isStateValid = Boolean(entry && Date.now() - entry.createdAt <= OAUTH_STATE_TTL_MS)
+  const target = isStateValid ? entry.redirect : `${getClientOrigin()}/auth/callback`
 
   try {
     initializeClients()
@@ -283,7 +354,7 @@ router.get('/twitter/callback', async (req, res, next) => {
       throw new ApiError(503, 'Twitter login not configured')
     }
 
-    if (!entry) {
+    if (!isStateValid) {
       throw new ApiError(400, 'Invalid or expired login session')
     }
 
@@ -315,14 +386,17 @@ router.get('/twitter/callback', async (req, res, next) => {
       avatar: profile.profile_image_url,
       provider: 'twitter',
       providerId: profile.id,
+      defaultRole: entry.role,
     })
+
+    if (user.role !== entry.role && user.role !== 'admin') {
+      return res.redirect(`${target}?error=role_mismatch&actualRole=${encodeURIComponent(user.role)}`)
+    }
 
     const token = generateToken(user._id)
     return res.redirect(`${target}?token=${token}`)
   } catch (error) {
-    console.error('Twitter OAuth error:', error)
-    const message = typeof error?.message === 'string' ? error.message : 'Twitter login failed'
-    return res.redirect(`${target}?error=${encodeURIComponent(message)}`)
+    return res.redirect(`${target}?error=twitter_login_failed`)
   }
 })
 
@@ -331,7 +405,7 @@ router.get('/twitter/callback', async (req, res, next) => {
 // @access  Public
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body
+    const { email, password, role } = req.body
 
     // Validate input
     if (!email || !password) {
@@ -348,6 +422,14 @@ router.post('/login', async (req, res, next) => {
     const isMatch = await user.comparePassword(password)
     if (!isMatch) {
       throw new ApiError(401, 'Invalid credentials')
+    }
+
+    const allowedRoles = ['student', 'teacher', 'parent']
+    if (role && !allowedRoles.includes(role)) {
+      throw new ApiError(400, 'Choose a valid account type')
+    }
+    if (role && user.role !== role && user.role !== 'admin') {
+      throw new ApiError(403, `This account is registered as a ${user.role}. Choose ${user.role} sign in.`)
     }
 
     // Update streak

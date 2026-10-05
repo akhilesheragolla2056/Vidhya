@@ -1,4 +1,5 @@
 import mongoose from 'mongoose'
+import { randomBytes } from 'node:crypto'
 
 const certificateSchema = new mongoose.Schema(
   {
@@ -62,13 +63,12 @@ const certificateSchema = new mongoose.Schema(
 )
 
 // Generate unique certificate number
-certificateSchema.pre('save', async function (next) {
+certificateSchema.pre('validate', function () {
   if (!this.certificateNumber) {
     const timestamp = Date.now().toString().slice(-6)
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase()
+    const random = randomBytes(4).toString('hex').toUpperCase()
     this.certificateNumber = `CERT-${timestamp}-${random}`
   }
-  next()
 })
 
 // Index for quick queries

@@ -26,16 +26,13 @@ export const fetchProfile = createAsyncThunk(
   'user/fetchProfile',
   async (_, { rejectWithValue }) => {
     try {
-      console.log('fetchProfile: calling GET /auth/profile')
       const response = await api.get('/auth/profile')
-      console.log('fetchProfile response:', response)
       // Server response has structure: { success: true, ...userData }
       // We need to extract the user object (everything except success field)
-      const { success, ...userData } = response.data
-      console.log('Extracted user data:', userData)
+      const userData = { ...response.data }
+      delete userData.success
       return userData
     } catch (error) {
-      console.error('fetchProfile error:', error)
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch profile')
     }
   }

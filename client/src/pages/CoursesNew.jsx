@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   Clock,
   Search,
   BookOpen,
-  Users,
-  Star,
   ArrowRight,
   Brain,
   Code,
@@ -14,54 +13,75 @@ import {
   Leaf,
   Briefcase,
   Trophy,
-  Filter,
   CheckCircle2,
   Play,
 } from 'lucide-react'
 
-import { coursesData, getAllCategories } from '../data/coursesData'
+import { coursesData } from '../data/coursesData'
 import { getCourseProgress, calculateProgress } from '../utils/progressTracker'
+import { coursesAPI } from '../services/api'
+
+const arVrCourse = coursesData.find(course => course.id === 'arvr-science-foundations')
+
+const loadLocalCourses = () => coursesData.map(course => {
+  const progress = getCourseProgress(course.id)
+  const percentage = calculateProgress(course.id, course.playlist.map(lesson => lesson.id))
+
+  return {
+    ...course,
+    progress: percentage,
+    status: progress.status,
+    completedLessons: progress.completedLessons.length,
+  }
+})
 
 /**
  * Courses Page - Browse all available courses
  */
 export default function CoursesNew() {
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'All')
   const [selectedDifficulty, setSelectedDifficulty] = useState('All')
-  const [coursesWithProgress, setCoursesWithProgress] = useState([])
+  const [coursesWithProgress] = useState(loadLocalCourses)
+  const { data: publishedCourses = [], isError: liveCoursesError } = useQuery({
+    queryKey: ['published-courses'],
+    queryFn: async () => {
+      const response = await coursesAPI.getAll({ limit: 100 })
+      return Array.isArray(response.data?.data) ? response.data.data : []
+    },
+  })
 
-  // Category icons mapping
-  const categoryIcons = {
-    'Academic Education': Brain,
-    'BSc Agriculture': Leaf,
-    'Sports & Fitness': Dumbbell,
-    'Skill-based Courses': Code,
-    'Competitive Exams': Trophy,
-    All: BookOpen,
-  }
+  const liveCourses = publishedCourses.map(course => ({
+    id: course._id,
+    href: `/courses/${course._id}`,
+    title: course.title,
+    category: course.category,
+    description: course.description,
+    instructor: course.instructor?.name || 'Course team',
+    instructorAvatar: course.instructor?.avatar,
+    difficulty: course.level || 'Beginner',
+    duration: course.duration || 'Self-paced',
+    totalLessons:
+      course.lessonsCount ||
+      course.modules?.reduce((count, module) => count + (module.lessons?.length || 0), 0) ||
+      0,
+    thumbnail: course.thumbnail,
+    progress: 0,
+    completedLessons: 0,
+    skills: course.whatYouWillLearn || [],
+  }))
+  const catalogCourses = [...coursesWithProgress, ...liveCourses]
 
-  // Load courses with progress
   useEffect(() => {
-    const enrichedCourses = coursesData.map(course => {
-      const progress = getCourseProgress(course.id)
-      const percentage = calculateProgress(course.id, course.totalLessons)
-
-      return {
-        ...course,
-        progress: percentage,
-        status: progress.status,
-        completedLessons: progress.completedLessons.length,
-      }
-    })
-    setCoursesWithProgress(enrichedCourses)
-  }, [])
+    setSelectedCategory(searchParams.get('category') || 'All')
+  }, [searchParams])
 
   // Filter courses
-  const filteredCourses = coursesWithProgress.filter(course => {
+  const filteredCourses = catalogCourses.filter(course => {
     const matchesSearch =
       course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase())
+      (course.description || '').toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'All' || course.category === selectedCategory
     const matchesDifficulty =
       selectedDifficulty === 'All' || course.difficulty === selectedDifficulty
@@ -69,7 +89,7 @@ export default function CoursesNew() {
     return matchesSearch && matchesCategory && matchesDifficulty
   })
 
-  const categories = ['All', ...getAllCategories()]
+  const categories = ['All', ...new Set(catalogCourses.map(course => course.category).filter(Boolean))]
   const difficulties = ['All', 'Beginner', 'Intermediate', 'Advanced']
 
   return (
@@ -84,11 +104,26 @@ export default function CoursesNew() {
           >
             <h1 className="text-3xl md:text-4xl font-bold mb-3">A broad selection of courses</h1>
             <p className="text-lg text-white/90">
-              Choose from over 10,000 online video courses with new additions published every month
+              Browse {catalogCourses.length} courses with lesson notes, knowledge checks, and clear progress tracking.
             </p>
           </motion.div>
         </div>
       </div>
+
+      {arVrCourse && (
+        <section className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50" aria-labelledby="immersive-course-title">
+          <div className="container-custom flex flex-col gap-5 py-7 md:flex-row md:items-center md:justify-between">
+            <div className="max-w-3xl">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-indigo-700">Immersive science spotlight</p>
+              <h2 id="immersive-course-title" className="mb-2 text-2xl font-bold text-slate-900">{arVrCourse.title}</h2>
+              <p className="text-sm leading-6 text-slate-600">{arVrCourse.description} Includes video lessons, notes, and knowledge checks.</p>
+            </div>
+            <Link to={`/course/${arVrCourse.id}`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-5 py-3 font-semibold text-white transition hover:bg-indigo-800">
+              Open AR/VR course <ArrowRight size={18} />
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* Search Bar */}
       <div className="bg-white border-b border-gray-200 py-4">
@@ -113,7 +148,10 @@ export default function CoursesNew() {
             {categories.map(category => (
               <button
                 key={category}
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => {
+                  setSelectedCategory(category)
+                  setSearchParams(category === 'All' ? {} : { category })
+                }}
                 className={`whitespace-nowrap pb-2 border-b-2 font-bold text-sm transition-colors ${
                   selectedCategory === category
                     ? 'border-gray-900 text-text-primary'
@@ -129,6 +167,11 @@ export default function CoursesNew() {
 
       {/* Difficulty Filter & Results */}
       <div className="container-custom py-6">
+        {liveCoursesError && (
+          <p role="status" className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Live course listings are temporarily unavailable. You can still browse the course library below.
+          </p>
+        )}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-text-primary">
             {selectedCategory === 'All' ? 'All Courses' : selectedCategory}
@@ -186,16 +229,21 @@ function CourseCard({ course, index }) {
       className="group"
     >
       <Link
-        to={`/course/${course.id}`}
+        to={course.href || `/course/${course.id}`}
         className="block bg-white rounded-xl border border-gray-200 hover:border-primary/30 hover:shadow-lg transition-all overflow-hidden h-full"
       >
         {/* Thumbnail */}
         <div className="relative h-48 overflow-hidden bg-gradient-to-br from-primary/10 to-accent-cyan/10">
-          <img
-            src={course.thumbnail}
-            alt={course.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          />
+          {course.thumbnail && (
+            <img
+              src={course.thumbnail}
+              alt=""
+              onError={event => {
+                event.currentTarget.style.display = 'none'
+              }}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          )}
 
           {/* Progress Overlay */}
           {course.progress > 0 && (
@@ -227,7 +275,7 @@ function CourseCard({ course, index }) {
 
         {/* Content */}
         <div className="p-5">
-          {/* Difficulty & Rating */}
+          {/* Difficulty and learning format */}
           <div className="flex items-center justify-between mb-3">
             <span
               className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -241,10 +289,7 @@ function CourseCard({ course, index }) {
               {course.difficulty}
             </span>
 
-            <div className="flex items-center gap-1">
-              <Star size={14} className="text-yellow-500 fill-yellow-500" />
-              <span className="text-sm font-semibold text-text-primary">{course.rating}</span>
-            </div>
+            <span className="text-xs font-medium text-text-secondary">Self-paced</span>
           </div>
 
           {/* Title */}
@@ -260,10 +305,6 @@ function CourseCard({ course, index }) {
             <div className="flex items-center gap-1">
               <BookOpen size={14} />
               <span>{course.totalLessons} lessons</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users size={14} />
-              <span>{course.enrolledCount.toLocaleString()}</span>
             </div>
             <div className="flex items-center gap-1">
               <Clock size={14} />
@@ -291,11 +332,20 @@ function CourseCard({ course, index }) {
 
           {/* Instructor */}
           <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
-            <img
-              src={course.instructorAvatar}
-              alt={course.instructor}
-              className="w-8 h-8 rounded-full object-cover"
-            />
+            {course.instructorAvatar ? (
+              <img
+                src={course.instructorAvatar}
+                alt=""
+                className="h-8 w-8 rounded-full object-cover"
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+              >
+                {course.instructor?.split(' ').map(part => part[0]).join('').slice(0, 2)}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-xs text-text-secondary">Instructor</p>
               <p className="text-sm font-semibold text-text-primary truncate">
@@ -319,5 +369,14 @@ const categoryIcons = {
   'Sports & Fitness': Dumbbell,
   'Skill-based Courses': Code,
   'Competitive Exams': Trophy,
+  Programming: Code,
+  'Web Dev': Code,
+  'Data Science': Brain,
+  'AI/ML': Brain,
+  Science: Leaf,
+  Business: Briefcase,
+  'Health Studies': Leaf,
+  'Life Science': Leaf,
+  'AR & VR Learning': Brain,
   All: BookOpen,
 }

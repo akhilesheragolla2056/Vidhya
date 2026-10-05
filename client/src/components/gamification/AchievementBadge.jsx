@@ -29,7 +29,6 @@ function AchievementBadge({
   size = 'md' 
 }) {
   const {
-    id,
     name,
     description,
     icon = 'trophy',

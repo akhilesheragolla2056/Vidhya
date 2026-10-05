@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -12,8 +13,6 @@ import {
   Clock,
   BarChart3,
   Award,
-  Star,
-  Users,
   ChevronRight,
 } from 'lucide-react'
 
@@ -21,6 +20,7 @@ import VideoLesson from '../components/course/VideoLesson'
 import TheoryNotes from '../components/course/TheoryNotes'
 import MCQQuiz from '../components/course/MCQQuiz'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import downloadCourseCertificate from '../utils/downloadCourseCertificate'
 
 import { getCourseById } from '../data/coursesData'
 import {
@@ -32,6 +32,7 @@ import {
   isLessonCompleted,
   areNotesRead,
   getMCQScore,
+  getVideoProgress,
 } from '../utils/progressTracker'
 
 /**
@@ -41,6 +42,7 @@ import {
 export default function CourseDetailNew() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const currentUser = useSelector(state => state.user.currentUser)
 
   const [course, setCourse] = useState(null)
   const [currentLessonIndex, setCurrentLessonIndex] = useState(0)
@@ -64,7 +66,7 @@ export default function CourseDetailNew() {
   // Update progress percentage whenever progress changes
   useEffect(() => {
     if (course && progress) {
-      calculateProgress(id, course.playlist.length)
+      calculateProgress(id, course.playlist.map(lesson => lesson.id))
     }
   }, [course, progress, id])
 
@@ -92,8 +94,11 @@ export default function CourseDetailNew() {
 
   const currentLesson = course.playlist[currentLessonIndex]
   const totalLessons = course.playlist.length
-  const overallProgress = calculateProgress(id, totalLessons)
+  const overallProgress = calculateProgress(id, course.playlist.map(lesson => lesson.id))
+  const completedLessonCount = course.playlist.filter(lesson => isLessonCompleted(id, lesson.id)).length
+  const certificateUnlocked = totalLessons > 0 && completedLessonCount === totalLessons
   const lessonCompleted = isLessonCompleted(id, currentLesson.id)
+  const videoCompleted = getVideoProgress(id, currentLesson.id) >= 80
   const notesRead = areNotesRead(id, currentLesson.id)
   const mcqScore = getMCQScore(id, currentLesson.id)
 
@@ -191,14 +196,6 @@ export default function CourseDetailNew() {
 
               <div className="flex flex-wrap items-center gap-4 text-sm text-text-secondary">
                 <div className="flex items-center gap-1">
-                  <Star size={14} className="text-yellow-500 fill-yellow-500" />
-                  <span className="font-semibold">{course.rating}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Users size={14} />
-                  <span>{course.enrolledCount.toLocaleString()} students</span>
-                </div>
-                <div className="flex items-center gap-1">
                   <Clock size={14} />
                   <span>{course.duration}</span>
                 </div>
@@ -211,11 +208,17 @@ export default function CourseDetailNew() {
 
             {/* Instructor */}
             <div className="flex items-center gap-3">
-              <img
-                src={course.instructorAvatar}
-                alt={course.instructor}
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              {course.instructorAvatar ? (
+                <img
+                  src={course.instructorAvatar}
+                  alt=""
+                  className="h-12 w-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+                  {course.instructor?.split(' ').map(part => part[0]).join('').slice(0, 2)}
+                </div>
+              )}
               <div>
                 <p className="text-xs text-text-secondary">Instructor</p>
                 <p className="font-semibold text-text-primary">{course.instructor}</p>
@@ -332,6 +335,15 @@ export default function CourseDetailNew() {
                         <span className="text-emerald-600 font-semibold">Completed</span>
                       </>
                     )}
+                    {!lessonCompleted && videoCompleted && (
+                      <>
+                        <span className="text-gray-300">•</span>
+                        <CheckCircle2 size={14} className="text-emerald-600" />
+                        <span className="text-emerald-600 font-semibold">
+                          Video complete — pass the quiz to finish this lesson
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -442,6 +454,38 @@ export default function CourseDetailNew() {
                 <ChevronRight size={18} />
               </button>
             </div>
+
+            <section className={`mt-6 rounded-xl border p-6 ${certificateUnlocked ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'}`}>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <Award className={`mt-1 shrink-0 ${certificateUnlocked ? 'text-amber-600' : 'text-gray-400'}`} size={24} />
+                  <div>
+                    <h3 className="font-bold text-text-primary">
+                      {certificateUnlocked ? 'Course certificate unlocked' : 'Course certificate'}
+                    </h3>
+                    <p className="mt-1 text-sm text-text-secondary">
+                    {certificateUnlocked
+                        ? 'You passed every lesson quiz. Your course certificate is ready to download.'
+                        : `Pass each lesson quiz to unlock your certificate. ${completedLessonCount} of ${totalLessons} quizzes passed.`}
+                    </p>
+                  </div>
+                </div>
+                {certificateUnlocked && (
+                  <button
+                    type="button"
+                    onClick={() => downloadCourseCertificate({
+                      learnerName: currentUser?.name || currentUser?.email?.split('@')[0] || 'Learner',
+                      courseTitle: course.title,
+                      completedAt: progress?.completedAt || new Date(),
+                    })}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-white transition-colors hover:bg-primary-dark"
+                  >
+                    <Award size={18} />
+                    Download certificate
+                  </button>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>

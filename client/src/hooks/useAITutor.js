@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useSelector, useDispatch } from 'react-redux'
 import { addMessage, clearMessages, setLoading } from '../store/slices/aiTutorSlice'
 import api from '../services/api'
@@ -10,7 +10,7 @@ export const useAITutor = () => {
   )
   
   const currentConversation = conversations.find(c => c.id === currentConversationId)
-  const messages = currentConversation?.messages || []
+  const messages = useMemo(() => currentConversation?.messages || [], [currentConversation?.messages])
 
   const sendMessage = useCallback(async (message, context = null) => {
     if (!message.trim() || isLoading) return

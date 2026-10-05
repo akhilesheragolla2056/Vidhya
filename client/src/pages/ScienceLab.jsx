@@ -1,37 +1,59 @@
 import { useState, useRef, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { PlayCircle, PauseCircle, RotateCcw, ChevronRight, ChevronLeft } from 'lucide-react'
-import api from '../services/api'
-import LoadingSpinner from '../components/ui/LoadingSpinner'
+import { PlayCircle, RotateCcw } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 // Load A-Frame once for AR/VR experiments
 function useAFrame() {
+  const [ready, setReady] = useState(Boolean(window.AFRAME))
+
   useEffect(() => {
-    if (!window.AFRAME) {
-      const script = document.createElement('script')
-      script.src = 'https://aframe.io/releases/1.5.0/aframe.min.js'
+    if (window.AFRAME) {
+      setReady(true)
+      return undefined
+    }
+
+    const existingScript = document.querySelector('script[data-aframe-runtime]')
+    const script = existingScript || document.createElement('script')
+    const handleLoad = () => setReady(Boolean(window.AFRAME))
+    const handleError = () => setReady(false)
+    script.addEventListener('load', handleLoad)
+    script.addEventListener('error', handleError)
+
+    if (!existingScript) {
+      script.src = 'https://aframe.io/releases/1.8.0/aframe.min.js'
       script.async = true
+      script.dataset.aframeRuntime = 'true'
       document.body.appendChild(script)
     }
+
+    return () => {
+      script.removeEventListener('load', handleLoad)
+      script.removeEventListener('error', handleError)
+    }
   }, [])
+
+  return ready
 }
 
 function AnatomyVR() {
-  useAFrame()
+  const ready = useAFrame()
+  if (!ready) return <div className="flex h-full items-center justify-center bg-slate-950 p-8 text-center text-white">Loading the 3D anatomy scene…</div>
   return (
     <div className="rounded-xl overflow-hidden border border-gray-100">
       <div className="aspect-video">
-        <a-scene embedded vr-mode-ui="enabled: true">
+        <a-scene embedded xr-mode-ui="XRMode: xr">
           <a-entity position="0 1.6 0">
-            <a-entity camera look-controls wasd-controls></a-entity>
+            <a-entity camera look-controls wasd-controls cursor="rayOrigin: mouse" raycaster="objects: .interactable"></a-entity>
           </a-entity>
+          <a-entity laser-controls="hand: right" raycaster="objects: .interactable"></a-entity>
           {/* Torso */}
           <a-box position="0 1 -3" depth="0.5" height="1.8" width="0.8" color="#DDD"></a-box>
           {/* Heart */}
-          <a-sphere position="0 1.2 -2.5" radius="0.2" color="#e11d48"></a-sphere>
+          <a-sphere class="interactable" position="0 1.2 -2.5" radius="0.2" color="#e11d48" animation__pulse="property: scale; to: 1.15 1.15 1.15; dir: alternate; dur: 700; loop: true" animation__hover="property: scale; startEvents: mouseenter; dur: 150; to: 1.5 1.5 1.5"></a-sphere>
           {/* Lungs */}
-          <a-sphere position="-0.3 1.2 -2.5" radius="0.25" color="#60a5fa"></a-sphere>
-          <a-sphere position="0.3 1.2 -2.5" radius="0.25" color="#60a5fa"></a-sphere>
+          <a-sphere class="interactable" position="-0.3 1.2 -2.5" radius="0.25" color="#60a5fa" animation__breathe="property: scale; to: 1.15 1.25 1.15; dir: alternate; dur: 1800; loop: true"></a-sphere>
+          <a-sphere class="interactable" position="0.3 1.2 -2.5" radius="0.25" color="#60a5fa" animation__breathe="property: scale; to: 1.15 1.25 1.15; dir: alternate; dur: 1800; loop: true"></a-sphere>
+          <a-text value="HEART\nLUNGS" align="center" position="0 2.2 -3" color="#0f172a" width="3"></a-text>
           <a-plane rotation="-90 0 0" width="10" height="10" color="#f0f0f0"></a-plane>
         </a-scene>
       </div>
@@ -40,16 +62,19 @@ function AnatomyVR() {
 }
 
 function CirculationVR() {
-  useAFrame()
+  const ready = useAFrame()
+  if (!ready) return <div className="flex h-full items-center justify-center bg-slate-950 p-8 text-center text-white">Loading the 3D circulation scene…</div>
   return (
     <div className="rounded-xl overflow-hidden border border-gray-100">
       <div className="aspect-video">
-        <a-scene embedded>
+        <a-scene embedded xr-mode-ui="XRMode: xr">
           <a-entity position="0 1.6 0">
-            <a-entity camera look-controls wasd-controls></a-entity>
+            <a-entity camera look-controls wasd-controls cursor="rayOrigin: mouse" raycaster="objects: .interactable"></a-entity>
           </a-entity>
-          <a-torus position="0 1 -3" radius="1" radius-tubular="0.05" color="#ef4444"></a-torus>
-          <a-sphere position="1 1 -3" radius="0.08" color="#b91c1c"></a-sphere>
+          <a-entity laser-controls="hand: right" raycaster="objects: .interactable"></a-entity>
+          <a-torus class="interactable" position="0 1 -3" radius="1" radius-tubular="0.05" color="#ef4444" animation="property: rotation; to: 0 0 360; dur: 9000; loop: true"></a-torus>
+          <a-sphere position="1 1 -3" radius="0.08" color="#b91c1c" animation="property: position; to: -1 1 -3; dur: 4000; dir: alternate; loop: true"></a-sphere>
+          <a-text value="BLOOD FLOW" align="center" position="0 2.3 -3" color="#0f172a" width="4"></a-text>
           <a-plane rotation="-90 0 0" width="10" height="10" color="#f0f0f0"></a-plane>
         </a-scene>
       </div>
@@ -58,16 +83,19 @@ function CirculationVR() {
 }
 
 function RespirationVR() {
-  useAFrame()
+  const ready = useAFrame()
+  if (!ready) return <div className="flex h-full items-center justify-center bg-slate-950 p-8 text-center text-white">Loading the 3D respiration scene…</div>
   return (
     <div className="rounded-xl overflow-hidden border border-gray-100">
       <div className="aspect-video">
-        <a-scene embedded>
+        <a-scene embedded xr-mode-ui="XRMode: xr">
           <a-entity position="0 1.6 0">
-            <a-entity camera look-controls wasd-controls></a-entity>
+            <a-entity camera look-controls wasd-controls cursor="rayOrigin: mouse" raycaster="objects: .interactable"></a-entity>
           </a-entity>
-          <a-sphere position="-0.4 1 -3" radius="0.3" color="#60a5fa"></a-sphere>
-          <a-sphere position="0.4 1 -3" radius="0.3" color="#60a5fa"></a-sphere>
+          <a-entity laser-controls="hand: right" raycaster="objects: .interactable"></a-entity>
+          <a-sphere class="interactable" position="-0.4 1 -3" radius="0.3" color="#60a5fa" animation="property: scale; to: 1 1.3 1; dir: alternate; dur: 1400; loop: true"></a-sphere>
+          <a-sphere class="interactable" position="0.4 1 -3" radius="0.3" color="#60a5fa" animation="property: scale; to: 1 1.3 1; dir: alternate; dur: 1400; loop: true"></a-sphere>
+          <a-text value="INHALE  •  EXHALE" align="center" position="0 2 -3" color="#0f172a" width="4"></a-text>
           <a-plane rotation="-90 0 0" width="10" height="10" color="#f0f0f0"></a-plane>
         </a-scene>
       </div>
@@ -205,12 +233,7 @@ function OhmsLawSimulation() {
   )
 }
 
-// Plant Cell Structure Component
-function PlantCellSimulation() {
-  const [selectedOrganelle, setSelectedOrganelle] = useState('nucleus')
-  const canvasRef = useRef(null)
-
-  const organelles = {
+const organelles = {
     nucleus: {
       name: 'Nucleus',
       description: 'Contains genetic material (DNA) and controls cell activities',
@@ -251,7 +274,12 @@ function PlantCellSimulation() {
       y: 150,
       size: 30,
     },
-  }
+}
+
+// Plant Cell Structure Component
+function PlantCellSimulation() {
+  const [selectedOrganelle, setSelectedOrganelle] = useState('nucleus')
+  const canvasRef = useRef(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -444,16 +472,6 @@ function AcidBaseSimulation() {
 function ScienceLab() {
   const [selectedExperiment, setSelectedExperiment] = useState('ohms-law')
 
-  const { data: experimentsData, isLoading } = useQuery({
-    queryKey: ['experiments'],
-    queryFn: async () => {
-      const res = await api.get('/labs')
-      return res.data.data || []
-    },
-  })
-
-  if (isLoading) return <LoadingSpinner />
-
   const experiments = [
     {
       id: 'ohms-law',
@@ -515,8 +533,16 @@ function ScienceLab() {
         <div className="mb-12">
           <h1 className="text-5xl font-bold text-text-primary mb-4">Advanced Science Lab</h1>
           <p className="text-xl text-text-secondary">
-            Interactive simulations for hands-on learning
+            Interactive science experiments with live calculations, 3D models, and browser-based AR/VR.
           </p>
+          <p className="mt-3 inline-flex rounded-full border border-primary/20 bg-white/80 px-4 py-2 text-sm text-text-secondary">
+            Use a mouse or touch screen to explore each model. AR/VR controls appear on supported WebXR devices over HTTPS.
+          </p>
+          <div className="mt-5">
+            <Link to="/courses?category=AR%20%26%20VR%20Learning" className="inline-flex items-center rounded-lg bg-primary px-5 py-3 font-semibold text-white transition hover:bg-primary-dark">
+              Start the AR/VR science course
+            </Link>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-4 gap-6">

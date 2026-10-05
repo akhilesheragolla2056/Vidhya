@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Clock, ChevronRight, ChevronLeft, AlertCircle, CheckCircle, XCircle } from 'lucide-react'
+import { Clock, ChevronRight, ChevronLeft, AlertCircle, CheckCircle } from 'lucide-react'
 import api from '../services/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
@@ -13,9 +13,11 @@ function TestTaker() {
   const [timeLeft, setTimeLeft] = useState(0)
   const [testStarted, setTestStarted] = useState(false)
   const [startTime, setStartTime] = useState(null)
+  const hasSubmittedRef = useRef(false)
+  const submitAttemptRef = useRef(null)
 
   // Fetch test
-  const { data: testData, isLoading } = useQuery({
+  const { data: testData, isLoading, isError: testLoadError } = useQuery({
     queryKey: ['test', testId],
     queryFn: async () => {
       const res = await api.get(`/tests/${testId}`)
@@ -34,35 +36,41 @@ function TestTaker() {
     },
   })
 
-  // Initialize timer
-  useEffect(() => {
-    if (testData && testStarted && !timeLeft) {
-      setTimeLeft(testData.duration * 60) // Convert minutes to seconds
-      setStartTime(new Date())
-    }
-  }, [testData, testStarted, timeLeft])
+  const handleSubmitTest = useCallback(() => {
+    if (!testData || !testStarted || hasSubmittedRef.current || submitTestMutation.isPending) return
+    hasSubmittedRef.current = true
+    const submittedAt = new Date()
+    const startedAt = startTime || submittedAt
+    submitTestMutation.mutate({
+      answers: testData.questions.map((_, index) => answers[index]),
+      startTime: startedAt.toISOString(),
+      timeSpent: Math.max(0, testData.duration * 60 - timeLeft),
+    })
+  }, [answers, startTime, submitTestMutation, testData, testStarted, timeLeft])
+  submitAttemptRef.current = handleSubmitTest
+  const isTimerExpired = timeLeft === 0
+  const isSubmitting = submitTestMutation.isPending
 
   // Timer countdown
   useEffect(() => {
-    if (!testStarted || timeLeft === 0) return
+    if (!testStarted || isTimerExpired || isSubmitting || hasSubmittedRef.current) return undefined
 
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          handleSubmitTest()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+    const timer = window.setInterval(() => setTimeLeft(previous => Math.max(0, previous - 1)), 1000)
 
-    return () => clearInterval(timer)
-  }, [testStarted, timeLeft])
+    return () => window.clearInterval(timer)
+  }, [testStarted, isTimerExpired, isSubmitting])
+
+  useEffect(() => {
+    if (testStarted && isTimerExpired) submitAttemptRef.current?.()
+  }, [testStarted, isTimerExpired])
 
   const handleStartTest = () => {
+    hasSubmittedRef.current = false
     setTestStarted(true)
-    console.log('Test started')
+    setStartTime(new Date())
+    setTimeLeft(testData.duration * 60)
+    setCurrentQuestion(0)
+    setAnswers({})
   }
 
   const handleAnswerQuestion = answer => {
@@ -70,15 +78,6 @@ function TestTaker() {
       ...prev,
       [currentQuestion]: answer,
     }))
-  }
-
-  const handleSubmitTest = () => {
-    const timeSpent = Math.round((testData.duration * 60 - timeLeft) / 60) // in minutes
-    submitTestMutation.mutate({
-      answers: testData.questions.map((q, idx) => answers[idx]),
-      startTime: startTime?.toISOString(),
-      timeSpent,
-    })
   }
 
   const handlePreviousQuestion = () => {
@@ -109,10 +108,24 @@ function TestTaker() {
 
   if (isLoading) return <LoadingSpinner />
 
-  if (!testData) return <div className="text-center py-8">Test not found</div>
+  if (testLoadError || !testData) {
+    return (
+      <div role="alert" className="mx-auto mt-16 max-w-lg rounded-xl border border-red-200 bg-white p-8 text-center">
+        <p className="mb-4 text-text-secondary">
+          {testLoadError ? 'This assessment could not be loaded.' : 'This assessment is unavailable.'}
+        </p>
+        <button type="button" onClick={() => navigate('/mock-tests')} className="btn-primary">
+          Back to assessments
+        </button>
+      </div>
+    )
+  }
+
+  if (!Array.isArray(testData.questions) || testData.questions.length === 0) {
+    return <div className="mx-auto mt-16 max-w-lg text-center text-text-secondary">This assessment has no questions yet.</div>
+  }
 
   const question = testData.questions[currentQuestion]
-  const answered = currentQuestion in answers
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -179,6 +192,21 @@ function TestTaker() {
         ) : (
           // Test Taking Interface
           <div className="grid lg:grid-cols-4 gap-6">
+            {submitTestMutation.isError && (
+              <div role="alert" className="lg:col-span-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                <span>{submitTestMutation.error?.response?.data?.message || 'Your attempt could not be saved. Check your connection and retry.'}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    hasSubmittedRef.current = false
+                    handleSubmitTest()
+                  }}
+                  className="rounded-lg bg-red-800 px-4 py-2 font-semibold text-white hover:bg-red-900"
+                >
+                  Retry submission
+                </button>
+              </div>
+            )}
             {/* Main Question Area */}
             <div className="lg:col-span-3">
               <div className="bg-white rounded-2xl shadow-lg p-8">
@@ -206,7 +234,16 @@ function TestTaker() {
 
                 {/* Question Options */}
                 <div className="space-y-3 mb-8">
-                  {question.options?.map((option, idx) => (
+                  {question.type === 'text' ? (
+                    <textarea
+                      value={answers[currentQuestion] || ''}
+                      onChange={event => handleAnswerQuestion(event.target.value)}
+                      aria-label="Your answer"
+                      rows={5}
+                      className="w-full rounded-xl border-2 border-gray-200 p-4 text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                      placeholder="Type your answer…"
+                    />
+                  ) : question.options?.map((option, idx) => (
                     <label
                       key={idx}
                       className={`flex items-center p-4 border-2 rounded-xl cursor-pointer transition-all ${

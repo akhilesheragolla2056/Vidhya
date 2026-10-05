@@ -14,18 +14,11 @@ function CourseCard({ course, index = 0 }) {
     category,
     difficulty,
     duration,
-    lessons,
     rating,
     enrolledCount,
     price,
     isFeatured,
   } = course
-
-  const difficultyColors = {
-    beginner: 'bg-green-100 text-green-700',
-    intermediate: 'bg-amber-100 text-amber-700',
-    advanced: 'bg-red-100 text-red-700',
-  }
 
   return (
     <motion.div

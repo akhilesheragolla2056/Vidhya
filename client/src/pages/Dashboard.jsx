@@ -1,7 +1,7 @@
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { coursesAPI, analyticsAPI } from '../services/api'
+import { coursesAPI } from '../services/api'
 import {
   BookOpen,
   FlaskConical,
@@ -15,38 +15,6 @@ import {
   Award,
   TrendingUp,
 } from 'lucide-react'
-
-function ProgressRing({ progress, size = 80, strokeWidth = 8 }) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = radius * 2 * Math.PI
-  const strokeDashoffset = circumference - (progress / 100) * circumference
-
-  return (
-    <svg width={size} height={size} className="transform -rotate-90">
-      <circle
-        className="text-gray-100"
-        strokeWidth={strokeWidth}
-        stroke="currentColor"
-        fill="transparent"
-        r={radius}
-        cx={size / 2}
-        cy={size / 2}
-      />
-      <circle
-        className="text-primary transition-all duration-500"
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={strokeDashoffset}
-        strokeLinecap="round"
-        stroke="currentColor"
-        fill="transparent"
-        r={radius}
-        cx={size / 2}
-        cy={size / 2}
-      />
-    </svg>
-  )
-}
 
 function CourseCard({ course }) {
   return (
@@ -127,64 +95,44 @@ function StatCard({ icon: Icon, value, label, trend }) {
 
 function Dashboard() {
   const { currentUser } = useSelector(state => state.user)
-
-  console.log('Dashboard mounted, currentUser:', currentUser)
+  const currentUserId = currentUser?._id || currentUser?.id
 
   const {
     data: enrolledCourses = [],
     isLoading: coursesLoading,
     isError: coursesError,
   } = useQuery({
-    queryKey: ['enrolledCourses'],
+    queryKey: ['enrolledCourses', currentUserId],
     queryFn: async () => {
-      try {
-        console.log('Fetching enrolled courses...')
-        const res = await coursesAPI.getEnrolled()
-        console.log('Enrolled courses response:', res)
-        // Handle different response structures
-        let courses = res.data || []
-        // If courses is an object (not array), try to extract courses array
-        if (courses && typeof courses === 'object' && !Array.isArray(courses)) {
-          courses = courses.courses || courses.data || []
-        }
-        console.log('Extracted courses array:', courses)
-        return Array.isArray(courses) ? courses : []
-      } catch (error) {
-        console.error('Failed to fetch enrolled courses:', error)
-        return []
-      }
+      const res = await coursesAPI.getEnrolled()
+      return Array.isArray(res.data?.data) ? res.data.data : []
     },
     enabled: !!currentUser,
     retry: 1,
   })
 
-  const { data: insights = {}, isError: insightsError } = useQuery({
-    queryKey: ['learningInsights'],
+  const { data: recommendations = [] } = useQuery({
+    queryKey: ['courseRecommendations', currentUserId],
     queryFn: async () => {
-      try {
-        const res = await analyticsAPI.getLearningInsights()
-        return res.data?.data || {}
-      } catch (error) {
-        console.error('Failed to fetch insights:', error)
-        return {}
-      }
+      const response = await coursesAPI.getRecommendations()
+      return Array.isArray(response.data?.data) ? response.data.data : []
     },
     enabled: !!currentUser,
     retry: 1,
   })
 
   const { data: progressSummary = {} } = useQuery({
-    queryKey: ['learningProgress'],
+    queryKey: ['learningProgress', currentUserId],
     queryFn: async () => {
       try {
         const { default: api } = await import('../services/api')
-        const res = await api.get(`/progress/user/${currentUser._id}`)
-        return res.data || {}
-      } catch (e) {
-        return {}
+        const res = await api.get(`/progress/user/${currentUserId}`)
+        return { data: res.data?.data || null, summary: res.data?.summary || {} }
+      } catch {
+        return { data: null, summary: {} }
       }
     },
-    enabled: !!currentUser,
+    enabled: !!currentUserId,
     retry: 1,
   })
 
@@ -209,12 +157,14 @@ function Dashboard() {
   const summary = progressSummary?.summary || {}
   const totalCoursesEnrolled = displayCourses.length
   const totalLearningHours = summary.totalLearningHours ?? 0
-  const certificatesEarned = Array.isArray(progressSummary?.certificates)
-    ? progressSummary.certificates.length
-    : (summary.certificatesEarned ?? 0)
-  const achievements = insights.achievements || []
-  const recommendations = insights.recommendations || []
-  const weeklyGoal = progressSummary?.data?.weeklyGoal
+  const certificatesEarned = summary.certificatesEarned || 0
+  const achievements = (currentUser?.progress?.badges || []).map(badge => ({
+    title: typeof badge === 'string' ? badge : badge.title,
+    desc: typeof badge === 'string' ? 'Achievement earned' : badge.description || 'Achievement earned',
+    icon: Trophy,
+    color: 'text-amber-600',
+  }))
+  const currentStreak = summary.currentStreak || 0
 
   return (
     <div className="min-h-screen bg-surface-bg">
@@ -239,7 +189,7 @@ function Dashboard() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          <QuickAction icon={Bot} label="AI Tutor" to="/ai-tutor" color="primary" />
+          <QuickAction icon={Bot} label="AI Tutor" to="/chat" color="primary" />
           <QuickAction icon={Puzzle} label="Games Hub" to="/games" color="primary" />
           <QuickAction icon={BarChart3} label="My Progress" to="/profile" color="orange" />
           <QuickAction icon={FlaskConical} label="Science Lab" to="/science-lab" color="cyan" />
@@ -306,21 +256,20 @@ function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recommendations.map((rec, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:border-primary hover:shadow-sm transition-all cursor-pointer"
+                  {recommendations.map(rec => (
+                    <Link
+                      key={rec._id}
+                      to={`/courses/${rec._id}`}
+                      className="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary hover:shadow-sm"
                     >
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
                         <Target size={20} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-bold text-text-primary mb-1">{rec.title}</h3>
-                        {rec.desc && (
-                          <p className="text-sm text-text-secondary line-clamp-2">{rec.desc}</p>
-                        )}
+                        <p className="text-sm text-text-secondary line-clamp-2">{rec.description}</p>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -331,19 +280,16 @@ function Dashboard() {
 
           <div className="space-y-6">
             <div className="bg-white rounded-2xl p-6 border border-gray-100">
-              <h3 className="font-semibold text-text-primary mb-4">Weekly Goal</h3>
-              {weeklyGoal ? (
+              <h3 className="font-semibold text-text-primary mb-4">Current learning streak</h3>
+              {currentStreak ? (
                 <div className="flex items-center gap-4">
-                  <ProgressRing progress={weeklyGoal.progress || 0} />
                   <div>
-                    <p className="text-3xl font-bold text-text-primary">
-                      {weeklyGoal.completed ?? 0}/{weeklyGoal.target ?? 0}
-                    </p>
-                    <p className="text-sm text-text-secondary">lessons completed</p>
+                    <p className="text-3xl font-bold text-text-primary">{currentStreak} days</p>
+                    <p className="text-sm text-text-secondary">Keep learning to continue it.</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-text-secondary">Set a weekly goal to track your progress.</p>
+                <p className="text-text-secondary">Complete a lesson today to start your streak.</p>
               )}
             </div>
 
@@ -394,7 +340,7 @@ function Dashboard() {
                 Ask our AI Tutor any question. It will guide you without giving away the answer!
               </p>
               <Link
-                to="/ai-tutor"
+                to="/chat"
                 className="block w-full text-center bg-white text-primary font-semibold py-3 rounded-xl hover:bg-gray-50 transition-colors"
               >
                 Start Chat

@@ -6,14 +6,11 @@ import {
   ChevronDown,
   Menu,
   X,
-  BookOpen,
   Beaker,
   Calculator,
   Code,
   MessageSquare,
   FileText,
-  HelpCircle,
-  Users,
   Award,
   Puzzle,
   Sparkles,
@@ -60,6 +57,11 @@ const navLinks = [
   {
     label: 'Courses',
     path: '/courses',
+    type: 'link',
+  },
+  {
+    label: 'Classrooms',
+    path: '/classrooms',
     type: 'link',
   },
   {

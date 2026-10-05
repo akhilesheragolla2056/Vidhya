@@ -1,15 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { Play, Pause, Volume2, VolumeX, Maximize, CheckCircle2 } from 'lucide-react'
-
-const FALLBACK_VIDEO_URL =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4'
 
 /**
  * VideoLesson Component
  * YouTube video player with progress tracking and auto-play next
  */
-export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, onNext, hasNext }) {
+export default function VideoLesson({ videoUrl, lessonId, courseId: _courseId, onComplete, onNext, hasNext }) {
   const playerRef = useRef(null)
   const containerRef = useRef(null)
   const [player, setPlayer] = useState(null)
@@ -21,6 +18,12 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
   const [watchedPercentage, setWatchedPercentage] = useState(0)
   const [videoError, setVideoError] = useState(false)
   const fallbackVideoRef = useRef(null)
+  const youtubePlayerRef = useRef(null)
+  const nextLessonTimerRef = useRef(null)
+  const handleVideoCompleteRef = useRef(null)
+  const completionReportedRef = useRef(false)
+  const onCompleteRef = useRef(onComplete)
+  onCompleteRef.current = onComplete
 
   // Extract YouTube video ID
   const getVideoId = url => {
@@ -49,19 +52,31 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
 
   // Load YouTube IFrame API
   useEffect(() => {
-    if (!window.YT) {
+    if (!videoId || window.YT) return
+    if (!document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
       const tag = document.createElement('script')
       tag.src = 'https://www.youtube.com/iframe_api'
-      const firstScriptTag = document.getElementsByTagName('script')[0]
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag)
+      tag.async = true
+      tag.onerror = () => setVideoError(true)
+      document.head.appendChild(tag)
     }
-  }, [])
+  }, [videoId])
 
   // Initialize YouTube Player
   useEffect(() => {
-    if (!videoId || !containerRef.current || videoError) return
+    setPlayer(null)
+    setIsPlaying(false)
+    setVideoError(false)
+    setProgress(0)
+    setDuration(0)
+    setCurrentTime(0)
+    setWatchedPercentage(0)
+    completionReportedRef.current = false
+    if (!videoId || !containerRef.current) return
+    let isDisposed = false
 
     const initPlayer = () => {
+      if (isDisposed || !containerRef.current) return
       try {
         const newPlayer = new window.YT.Player(containerRef.current, {
           videoId: videoId,
@@ -74,10 +89,13 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
           },
           events: {
             onReady: event => {
+              if (isDisposed) return
+              youtubePlayerRef.current = event.target
               setPlayer(event.target)
               setDuration(event.target.getDuration())
             },
             onStateChange: event => {
+              if (isDisposed) return
               // 0 = ended, 1 = playing, 2 = paused
               if (event.data === window.YT.PlayerState.PLAYING) {
                 setIsPlaying(true)
@@ -85,7 +103,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
                 setIsPlaying(false)
               } else if (event.data === window.YT.PlayerState.ENDED) {
                 setIsPlaying(false)
-                handleVideoComplete()
+                handleVideoCompleteRef.current?.()
               }
             },
             onError: () => {
@@ -95,7 +113,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
         })
         return newPlayer
       } catch (error) {
-        console.error('YouTube player init failed, using fallback video:', error)
+        console.error('YouTube player could not be initialized:', error)
         setVideoError(true)
         return null
       }
@@ -108,11 +126,24 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
     }
 
     return () => {
-      if (player) {
-        player.destroy()
+      isDisposed = true
+      if (youtubePlayerRef.current) {
+        youtubePlayerRef.current.destroy()
+        youtubePlayerRef.current = null
       }
     }
-  }, [videoId])
+  }, [videoId, lessonId])
+
+  useEffect(() => () => {
+    if (nextLessonTimerRef.current) clearTimeout(nextLessonTimerRef.current)
+    nextLessonTimerRef.current = null
+  }, [videoUrl, lessonId])
+
+  const reportWatchProgress = useCallback(percentage => {
+    if (percentage < 80 || completionReportedRef.current) return
+    completionReportedRef.current = true
+    onCompleteRef.current?.(lessonId, percentage)
+  }, [lessonId])
 
   // Update progress periodically
   useEffect(() => {
@@ -123,31 +154,34 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
       const total = player.getDuration()
 
       setCurrentTime(current)
-      setProgress((current / total) * 100)
+      setProgress(total > 0 ? Math.min(100, (current / total) * 100) : 0)
 
       // Track watched percentage (max watched)
-      const percentage = Math.round((current / total) * 100)
+      const percentage = total > 0 ? Math.round((current / total) * 100) : 0
       if (percentage > watchedPercentage) {
         setWatchedPercentage(percentage)
       }
+      reportWatchProgress(percentage)
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [player, isPlaying, watchedPercentage])
+  }, [player, isPlaying, watchedPercentage, reportWatchProgress])
 
-  const handleVideoComplete = () => {
+  const handleVideoComplete = useCallback(() => {
     setWatchedPercentage(100)
-    if (onComplete) {
-      onComplete(lessonId, 100)
-    }
+    completionReportedRef.current = true
+    onCompleteRef.current?.(lessonId, 100)
 
     // Auto-play next video after 3 seconds
     if (hasNext && onNext) {
-      setTimeout(() => {
+      if (nextLessonTimerRef.current) clearTimeout(nextLessonTimerRef.current)
+      nextLessonTimerRef.current = setTimeout(() => {
+        nextLessonTimerRef.current = null
         onNext()
       }, 3000)
     }
-  }
+  }, [hasNext, lessonId, onNext])
+  handleVideoCompleteRef.current = handleVideoComplete
 
   const togglePlay = () => {
     if (fallbackVideoRef.current) {
@@ -226,6 +260,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
       if (watched > watchedPercentage) {
         setWatchedPercentage(watched)
       }
+      reportWatchProgress(watched)
     }
   }
 
@@ -233,17 +268,28 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
     handleVideoComplete()
   }
 
-  const fallbackSource = !isYouTube ? videoUrl : videoError ? FALLBACK_VIDEO_URL : null
-  const safeFallbackSource =
-    fallbackSource && fallbackSource.includes('youtube.com')
-      ? FALLBACK_VIDEO_URL
-      : fallbackSource
+  const fallbackSource = !isYouTube ? videoUrl : null
 
   return (
     <div ref={playerRef} className="relative group">
       {/* YouTube Player Container */}
       <div className="aspect-video bg-black rounded-xl overflow-hidden">
-        {safeFallbackSource ? (
+        {!videoUrl ? (
+          <div className="flex h-full items-center justify-center bg-slate-950 p-8 text-center text-slate-300">
+            <div>
+              <Play size={32} className="mx-auto mb-3 text-slate-500" />
+              <p className="font-medium text-white">No video for this lesson</p>
+              <p className="mt-1 text-sm">Use the lesson notes and quiz to continue.</p>
+            </div>
+          </div>
+        ) : videoError ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-950 p-8 text-center text-slate-200">
+            <p>We could not load this lesson video.</p>
+            <a href={videoUrl} target="_blank" rel="noreferrer" className="text-cyan-300 underline">
+              Open the video in a new tab
+            </a>
+          </div>
+        ) : fallbackSource ? (
           <video
             ref={fallbackVideoRef}
             className="w-full h-full"
@@ -254,8 +300,9 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
             onEnded={handleFallbackEnded}
+            onError={() => setVideoError(true)}
           >
-            <source src={safeFallbackSource} type="video/mp4" />
+            <source src={fallbackSource} />
           </video>
         ) : (
           <div ref={containerRef} className="w-full h-full" />
@@ -263,6 +310,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
       </div>
 
       {/* Custom Controls Overlay */}
+      {videoUrl && !videoError && (
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         {/* Progress Bar */}
         <div
@@ -327,9 +375,10 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
           </button>
         </div>
       </div>
+      )}
 
       {/* Video Complete Overlay */}
-      {watchedPercentage === 100 && hasNext && (
+      {videoUrl && watchedPercentage === 100 && hasNext && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center rounded-xl">
           <div className="text-center">
             <CheckCircle2 size={64} className="text-emerald-400 mx-auto mb-4" />
@@ -349,7 +398,7 @@ export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, 
 }
 
 VideoLesson.propTypes = {
-  videoUrl: PropTypes.string.isRequired,
+  videoUrl: PropTypes.string,
   lessonId: PropTypes.string.isRequired,
   courseId: PropTypes.string.isRequired,
   onComplete: PropTypes.func,

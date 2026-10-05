@@ -305,3 +305,36 @@ body {
 .fade-in {
   animation: fadeIn 0.3s ease-out;
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .certificate-print-sheet,
+  .certificate-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .certificate-print-sheet {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .certificate-print-actions {
+    display: none !important;
+  }
+}

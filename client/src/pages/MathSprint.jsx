@@ -15,6 +15,8 @@ import {
   clearLatestResult,
 } from '../store/slices/gameSlice'
 
+const EMPTY_LEADERBOARD = []
+
 const CONFIG = {
   easy: { max: 20, operators: ['+', '-'] },
   medium: { max: 50, operators: ['+', '-', '*'] },
@@ -88,7 +90,7 @@ export default function MathSprint() {
 
   const missions = dailyMissions?.missions || []
   const mathStats = stats?.overall?.math_sprint || {}
-  const topPlayers = leaderboard?.math_sprint || []
+  const topPlayers = leaderboard?.math_sprint ?? EMPTY_LEADERBOARD
 
   const accuracy = attempted > 0 ? Math.round((correct / attempted) * 100) : 0
 

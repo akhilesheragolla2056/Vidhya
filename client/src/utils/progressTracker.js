@@ -23,21 +23,30 @@ export function getAllProgress() {
  */
 export function getCourseProgress(courseId) {
   const allProgress = getAllProgress()
-  return (
-    allProgress[courseId] || {
-      courseId,
-      completedLessons: [],
-      videoProgress: {},
-      completedMCQs: [],
-      mcqScores: {},
-      notesRead: [],
-      status: 'not-started', // not-started, in-progress, completed
-      lastAccessed: null,
-      startedAt: null,
-      completedAt: null,
-      overallProgress: 0,
-    }
-  )
+  const savedProgress = allProgress[courseId] || {}
+  return {
+    courseId,
+    completedLessons: Array.isArray(savedProgress.completedLessons) ? savedProgress.completedLessons : [],
+    videoProgress: savedProgress.videoProgress || {},
+    completedMCQs: Array.isArray(savedProgress.completedMCQs) ? savedProgress.completedMCQs : [],
+    mcqScores: savedProgress.mcqScores || {},
+    notesRead: Array.isArray(savedProgress.notesRead) ? savedProgress.notesRead : [],
+    status: savedProgress.status || 'not-started',
+    lastAccessed: savedProgress.lastAccessed || null,
+    startedAt: savedProgress.startedAt || null,
+    completedAt: savedProgress.completedAt || null,
+    overallProgress: savedProgress.overallProgress || 0,
+  }
+}
+
+const syncLessonCompletion = (courseProgress, lessonId) => {
+  const quizComplete = Number(courseProgress.mcqScores[lessonId]?.percentage) >= 60
+  const completedLessons = new Set(courseProgress.completedLessons)
+
+  if (quizComplete) completedLessons.add(lessonId)
+  else completedLessons.delete(lessonId)
+
+  courseProgress.completedLessons = [...completedLessons]
 }
 
 /**
@@ -48,16 +57,14 @@ export function markVideoWatched(courseId, lessonId, watchPercentage = 100) {
   const courseProgress = getCourseProgress(courseId)
 
   // Update video progress
+  const percentage = Math.max(0, Math.min(100, Number(watchPercentage) || 0))
   courseProgress.videoProgress[lessonId] = {
-    watched: true,
-    percentage: watchPercentage,
+    watched: percentage >= 80,
+    percentage,
     watchedAt: new Date().toISOString(),
   }
 
-  // Add to completed lessons if fully watched
-  if (watchPercentage >= 80 && !courseProgress.completedLessons.includes(lessonId)) {
-    courseProgress.completedLessons.push(lessonId)
-  }
+  syncLessonCompletion(courseProgress, lessonId)
 
   // Update status and timestamps
   if (!courseProgress.startedAt) {
@@ -104,23 +111,20 @@ export function saveMCQResults(courseId, lessonId, score, totalQuestions) {
   const courseProgress = getCourseProgress(courseId)
 
   // Save score
+  const safeScore = Math.max(0, Math.min(totalQuestions, Number(score) || 0))
+  const percentage = totalQuestions > 0 ? Math.round((safeScore / totalQuestions) * 100) : 0
   courseProgress.mcqScores[lessonId] = {
-    score,
+    score: safeScore,
     totalQuestions,
-    percentage: Math.round((score / totalQuestions) * 100),
+    percentage,
     attemptedAt: new Date().toISOString(),
   }
 
-  // Mark as completed if passed (60% or above)
-  const passed = score / totalQuestions >= 0.6
-  if (passed && !courseProgress.completedMCQs.includes(lessonId)) {
-    courseProgress.completedMCQs.push(lessonId)
-  }
-
-  // Add to completed lessons if passed
-  if (passed && !courseProgress.completedLessons.includes(lessonId)) {
-    courseProgress.completedLessons.push(lessonId)
-  }
+  const completedMCQs = new Set(courseProgress.completedMCQs)
+  if (percentage >= 60) completedMCQs.add(lessonId)
+  else completedMCQs.delete(lessonId)
+  courseProgress.completedMCQs = [...completedMCQs]
+  syncLessonCompletion(courseProgress, lessonId)
 
   courseProgress.lastAccessed = new Date().toISOString()
   if (!courseProgress.startedAt) {
@@ -137,21 +141,33 @@ export function saveMCQResults(courseId, lessonId, score, totalQuestions) {
 /**
  * Calculate overall progress for a course
  */
-export function calculateProgress(courseId, totalLessons) {
+export function calculateProgress(courseId, lessonIdsOrCount) {
   const courseProgress = getCourseProgress(courseId)
+  const lessonIds = Array.isArray(lessonIdsOrCount) ? lessonIdsOrCount : null
+  const totalLessons = lessonIds ? lessonIds.length : lessonIdsOrCount
 
   if (totalLessons === 0) return 0
 
-  const completedCount = courseProgress.completedLessons.length
+  if (lessonIds) {
+    courseProgress.completedLessons = lessonIds.filter(lessonId => {
+      syncLessonCompletion(courseProgress, lessonId)
+      return courseProgress.completedLessons.includes(lessonId)
+    })
+  }
+
+  const completedCount = Math.min(courseProgress.completedLessons.length, totalLessons)
   const percentage = Math.round((completedCount / totalLessons) * 100)
 
   // Update stored progress
   courseProgress.overallProgress = percentage
 
   // Check if course is completed
-  if (percentage === 100 && courseProgress.status !== 'completed') {
+  if (percentage === 100) {
     courseProgress.status = 'completed'
-    courseProgress.completedAt = new Date().toISOString()
+    if (!courseProgress.completedAt) courseProgress.completedAt = new Date().toISOString()
+  } else if (percentage < 100) {
+    courseProgress.status = courseProgress.startedAt ? 'in-progress' : 'not-started'
+    courseProgress.completedAt = null
   }
 
   const allProgress = getAllProgress()
@@ -166,7 +182,7 @@ export function calculateProgress(courseId, totalLessons) {
  */
 export function isLessonCompleted(courseId, lessonId) {
   const courseProgress = getCourseProgress(courseId)
-  return courseProgress.completedLessons.includes(lessonId)
+  return Number(courseProgress.mcqScores[lessonId]?.percentage) >= 60
 }
 
 /**

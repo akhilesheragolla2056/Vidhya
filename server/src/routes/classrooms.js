@@ -1,55 +1,90 @@
 import express from 'express'
-import crypto from 'crypto'
+import crypto from 'node:crypto'
+import Classroom from '../models/Classroom.js'
 import { ApiError } from '../middleware/errorHandler.js'
+import { requireRole } from '../middleware/auth.js'
 
 const router = express.Router()
 
-// In-memory storage (replace with Redis/DB in production)
-const classrooms = new Map()
+const userIdOf = user => user?._id?.toString() || user?.id?.toString()
 
-// @route   POST /api/classrooms
-// @desc    Create a new classroom session
-// @access  Private
-router.post('/', async (req, res, next) => {
+export const getClassroom = roomId => Classroom.findById(roomId)
+
+export const addClassroomParticipant = (classroom, user) => {
+  const userId = userIdOf(user)
+  if (!userId) return false
+  if (classroom.participants.some(participant => participant.userId === userId)) return false
+  classroom.participants.push({
+    userId,
+    name: user.name || 'Learner',
+    avatar: user.avatar || null,
+    joinedAt: new Date(),
+  })
+  return true
+}
+
+async function makeUniqueCode() {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const code = crypto.randomBytes(3).toString('hex').toUpperCase()
+    if (!(await Classroom.exists({ code }))) return code
+  }
+  throw new ApiError(503, 'Could not create a unique classroom code. Please try again.')
+}
+
+function requireParticipant(classroom, user) {
+  const userId = userIdOf(user)
+  return classroom.participants.some(participant => participant.userId === userId)
+}
+
+router.get('/', async (req, res, next) => {
   try {
-    const { title, courseId, lessonId, settings = {} } = req.body
+    const userId = userIdOf(req.user)
+    const classrooms = await Classroom.find({
+      $or: [{ host: req.user._id }, { 'participants.userId': userId }],
+    })
+      .sort({ updatedAt: -1 })
+      .limit(30)
+      .select('code title courseId lessonId host status startedAt endedAt participants createdAt updatedAt')
+    res.json({ success: true, data: classrooms })
+  } catch (error) {
+    next(error)
+  }
+})
 
-    // Generate unique room code
-    const roomCode = crypto.randomBytes(3).toString('hex').toUpperCase()
-    const roomId = crypto.randomUUID()
-
-    const classroom = {
-      id: roomId,
-      code: roomCode,
-      title,
-      courseId,
-      lessonId,
-      host: req.user.id,
-      participants: [],
-      settings: {
-        allowChat: true,
-        allowHandRaise: true,
-        allowScreenShare: false,
-        maxParticipants: 50,
-        ...settings,
-      },
-      status: 'waiting', // waiting, active, ended
-      createdAt: new Date(),
-      startedAt: null,
-      endedAt: null,
-      whiteboard: null,
-      polls: [],
-      breakoutRooms: [],
+router.post('/', requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const { title, courseId, lessonId } = req.body
+    const settings = req.body.settings && typeof req.body.settings === 'object' && !Array.isArray(req.body.settings)
+      ? req.body.settings
+      : {}
+    if (typeof title !== 'string' || !title.trim() || title.trim().length > 120) {
+      throw new ApiError(400, 'A classroom name of up to 120 characters is required')
     }
 
-    classrooms.set(roomId, classroom)
+    const classroom = new Classroom({
+      code: await makeUniqueCode(),
+      title: title.trim(),
+      courseId: typeof courseId === 'string' ? courseId : null,
+      lessonId: typeof lessonId === 'string' ? lessonId : null,
+      host: req.user._id,
+      settings: {
+        allowChat: settings.allowChat !== false,
+        allowHandRaise: settings.allowHandRaise !== false,
+        allowScreenShare: settings.allowScreenShare === true,
+        maxParticipants: Number.isInteger(settings.maxParticipants)
+          ? Math.min(200, Math.max(2, settings.maxParticipants))
+          : 50,
+      },
+    })
+    addClassroomParticipant(classroom, req.user)
+    await classroom.save()
 
     res.status(201).json({
       success: true,
       data: {
-        roomId,
-        roomCode,
-        joinUrl: `/classroom/${roomId}`,
+        roomId: classroom.id,
+        roomCode: classroom.code,
+        joinUrl: `/classroom/${classroom.id}`,
       },
     })
   } catch (error) {
@@ -57,124 +92,98 @@ router.post('/', async (req, res, next) => {
   }
 })
 
-// @route   POST /api/classrooms/join
-// @desc    Join a classroom by code
-// @access  Private
 router.post('/join', async (req, res, next) => {
   try {
-    const { code } = req.body
+    const code = typeof req.body.code === 'string' ? req.body.code.trim().toUpperCase() : ''
+    if (!/^[A-F0-9]{6}$/.test(code)) throw new ApiError(400, 'Enter a valid six-character classroom code')
 
-    // Find classroom by code
-    let foundClassroom = null
-    for (const [id, classroom] of classrooms) {
-      if (classroom.code === code.toUpperCase()) {
-        foundClassroom = { id, ...classroom }
-        break
-      }
-    }
+    const classroom = await Classroom.findOne({ code })
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
 
-    if (!foundClassroom) {
-      throw new ApiError(404, 'Classroom not found')
-    }
-
-    if (foundClassroom.status === 'ended') {
-      throw new ApiError(400, 'This session has ended')
-    }
-
-    if (foundClassroom.participants.length >= foundClassroom.settings.maxParticipants) {
+    const alreadyJoined = requireParticipant(classroom, req.user)
+    if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
       throw new ApiError(400, 'Classroom is full')
     }
+    addClassroomParticipant(classroom, req.user)
+    if (classroom.status === 'waiting') {
+      classroom.status = 'active'
+      classroom.startedAt = new Date()
+    }
+    await classroom.save()
 
     res.json({
       success: true,
-      data: {
-        roomId: foundClassroom.id,
-        title: foundClassroom.title,
-        host: foundClassroom.host,
-      },
+      data: { roomId: classroom.id, title: classroom.title, host: classroom.host },
     })
   } catch (error) {
     next(error)
   }
 })
 
-// @route   GET /api/classrooms/:id
-// @desc    Get classroom details
-// @access  Private
+router.post('/:id/join', async (req, res, next) => {
+  try {
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
+
+    const alreadyJoined = requireParticipant(classroom, req.user)
+    if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
+      throw new ApiError(400, 'Classroom is full')
+    }
+    addClassroomParticipant(classroom, req.user)
+    if (classroom.status === 'waiting') {
+      classroom.status = 'active'
+      classroom.startedAt = new Date()
+    }
+    await classroom.save()
+    res.json({ success: true, data: classroom })
+  } catch (error) {
+    next(error)
+  }
+})
+
 router.get('/:id', async (req, res, next) => {
   try {
-    const classroom = classrooms.get(req.params.id)
-
-    if (!classroom) {
-      throw new ApiError(404, 'Classroom not found')
-    }
-
-    res.json({
-      success: true,
-      data: classroom,
-    })
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (!requireParticipant(classroom, req.user)) throw new ApiError(403, 'Join this classroom to view it')
+    res.json({ success: true, data: classroom })
   } catch (error) {
     next(error)
   }
 })
 
-// @route   POST /api/classrooms/:id/start
-// @desc    Start the classroom session
-// @access  Private (host only)
 router.post('/:id/start', async (req, res, next) => {
   try {
-    const classroom = classrooms.get(req.params.id)
-
-    if (!classroom) {
-      throw new ApiError(404, 'Classroom not found')
-    }
-
-    if (classroom.host !== req.user.id) {
-      throw new ApiError(403, 'Only the host can start the session')
-    }
-
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.host.toString() !== userIdOf(req.user)) throw new ApiError(403, 'Only the host can start the session')
+    if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
     classroom.status = 'active'
-    classroom.startedAt = new Date()
-    classrooms.set(req.params.id, classroom)
-
-    res.json({
-      success: true,
-      message: 'Session started',
-    })
+    classroom.startedAt ||= new Date()
+    await classroom.save()
+    res.json({ success: true, message: 'Session started' })
   } catch (error) {
     next(error)
   }
 })
 
-// @route   POST /api/classrooms/:id/end
-// @desc    End the classroom session
-// @access  Private (host only)
 router.post('/:id/end', async (req, res, next) => {
   try {
-    const classroom = classrooms.get(req.params.id)
-
-    if (!classroom) {
-      throw new ApiError(404, 'Classroom not found')
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.host.toString() !== userIdOf(req.user)) throw new ApiError(403, 'Only the host can end the session')
+    if (classroom.status !== 'ended') {
+      classroom.status = 'ended'
+      classroom.endedAt = new Date()
+      await classroom.save()
     }
-
-    if (classroom.host !== req.user.id) {
-      throw new ApiError(403, 'Only the host can end the session')
-    }
-
-    classroom.status = 'ended'
-    classroom.endedAt = new Date()
-    classrooms.set(req.params.id, classroom)
-
-    // Clean up after 24 hours
-    setTimeout(() => {
-      classrooms.delete(req.params.id)
-    }, 24 * 60 * 60 * 1000)
-
     res.json({
       success: true,
       message: 'Session ended',
       data: {
-        duration: classroom.endedAt - classroom.startedAt,
+        duration: classroom.endedAt - (classroom.startedAt || classroom.createdAt),
         participantCount: classroom.participants.length,
       },
     })
@@ -183,92 +192,60 @@ router.post('/:id/end', async (req, res, next) => {
   }
 })
 
-// @route   POST /api/classrooms/:id/poll
-// @desc    Create a poll
-// @access  Private (host only)
 router.post('/:id/poll', async (req, res, next) => {
   try {
     const { question, options, duration = 60 } = req.body
-    const classroom = classrooms.get(req.params.id)
-
-    if (!classroom) {
-      throw new ApiError(404, 'Classroom not found')
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.host.toString() !== userIdOf(req.user)) throw new ApiError(403, 'Only the host can create polls')
+    if (typeof question !== 'string' || !question.trim() || question.length > 300) {
+      throw new ApiError(400, 'A poll question is required')
     }
-
-    if (classroom.host !== req.user.id) {
-      throw new ApiError(403, 'Only the host can create polls')
+    if (!Array.isArray(options) || options.length < 2 || options.length > 8 || options.some(option => typeof option !== 'string' || !option.trim() || option.length > 160)) {
+      throw new ApiError(400, 'Polls require 2 to 8 valid answer options')
     }
 
     const poll = {
       id: crypto.randomUUID(),
-      question,
-      options,
+      question: question.trim(),
+      options: options.map(option => option.trim()),
       votes: {},
       createdAt: new Date(),
-      duration,
+      duration: Math.min(3600, Math.max(10, Number(duration) || 60)),
       isActive: true,
     }
-
     classroom.polls.push(poll)
-    classrooms.set(req.params.id, classroom)
-
-    // Auto-end poll after duration
-    setTimeout(() => {
-      poll.isActive = false
-      classrooms.set(req.params.id, classroom)
-    }, duration * 1000)
-
-    res.json({
-      success: true,
-      data: poll,
-    })
+    await classroom.save()
+    res.status(201).json({ success: true, data: poll })
   } catch (error) {
     next(error)
   }
 })
 
-// @route   POST /api/classrooms/:id/breakout
-// @desc    Create breakout rooms
-// @access  Private (host only)
 router.post('/:id/breakout', async (req, res, next) => {
   try {
     const { roomCount, assignmentType = 'random' } = req.body
-    const classroom = classrooms.get(req.params.id)
-
-    if (!classroom) {
-      throw new ApiError(404, 'Classroom not found')
+    const classroom = await getClassroom(req.params.id)
+    if (!classroom) throw new ApiError(404, 'Classroom not found')
+    if (classroom.host.toString() !== userIdOf(req.user)) throw new ApiError(403, 'Only the host can create breakout rooms')
+    if (!Number.isInteger(roomCount) || roomCount < 2 || roomCount > 10) {
+      throw new ApiError(400, 'Choose between 2 and 10 breakout rooms')
+    }
+    if (!['random', 'balanced'].includes(assignmentType)) {
+      throw new ApiError(400, 'Unsupported breakout assignment type')
     }
 
-    if (classroom.host !== req.user.id) {
-      throw new ApiError(403, 'Only the host can create breakout rooms')
-    }
-
-    const breakoutRooms = []
     const participants = [...classroom.participants]
-
-    for (let i = 0; i < roomCount; i++) {
-      breakoutRooms.push({
-        id: crypto.randomUUID(),
-        name: `Room ${i + 1}`,
-        participants: [],
-      })
-    }
-
-    // Random assignment
-    if (assignmentType === 'random') {
-      participants.sort(() => Math.random() - 0.5)
-      participants.forEach((p, index) => {
-        breakoutRooms[index % roomCount].participants.push(p)
-      })
-    }
-
-    classroom.breakoutRooms = breakoutRooms
-    classrooms.set(req.params.id, classroom)
-
-    res.json({
-      success: true,
-      data: breakoutRooms,
-    })
+    if (assignmentType === 'random') participants.sort(() => Math.random() - 0.5)
+    const rooms = Array.from({ length: roomCount }, (_, index) => ({
+      id: crypto.randomUUID(),
+      name: `Room ${index + 1}`,
+      participants: [],
+    }))
+    participants.forEach((participant, index) => rooms[index % roomCount].participants.push(participant))
+    classroom.breakoutRooms = rooms
+    await classroom.save()
+    res.json({ success: true, data: rooms })
   } catch (error) {
     next(error)
   }

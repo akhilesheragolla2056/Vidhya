@@ -4,9 +4,12 @@ const initialState = {
   socket: null,
   isConnected: false,
   currentRoom: null,
+  roomEnded: false,
   participants: [],
   messages: [],
   isHandRaised: false,
+  raisedHands: {},
+  currentUserId: null,
   breakoutRooms: [],
   whiteboardState: null,
   screenShareActive: false,
@@ -25,14 +28,27 @@ const classroomSlice = createSlice({
     },
     joinRoom: (state, action) => {
       state.currentRoom = action.payload
+      state.roomEnded = false
     },
     leaveRoom: (state) => {
       state.currentRoom = null
+      state.roomEnded = false
       state.participants = []
       state.messages = []
+      state.isHandRaised = false
+      state.raisedHands = {}
+      state.whiteboardState = ''
+      state.pollActive = null
+      state.currentUserId = null
+    },
+    setRoomEnded: (state, action) => {
+      state.roomEnded = action.payload
     },
     setParticipants: (state, action) => {
       state.participants = action.payload
+    },
+    setMessages: (state, action) => {
+      state.messages = action.payload
     },
     addParticipant: (state, action) => {
       const exists = state.participants.find(p => p.id === action.payload.id)
@@ -44,13 +60,21 @@ const classroomSlice = createSlice({
       state.participants = state.participants.filter(p => p.id !== action.payload)
     },
     addMessage: (state, action) => {
-      state.messages.push({
-        ...action.payload,
-        timestamp: Date.now(),
-      })
+      if (!state.messages.some(message => message.id === action.payload.id)) {
+        state.messages.push(action.payload)
+      }
     },
     toggleHandRaise: (state) => {
       state.isHandRaised = !state.isHandRaised
+    },
+    setHandRaised: (state, action) => {
+      const { userId, isRaised } = action.payload
+      state.raisedHands[userId] = isRaised
+      if (userId === state.currentUserId) state.isHandRaised = isRaised
+    },
+    setCurrentUserId: (state, action) => {
+      state.currentUserId = action.payload
+      state.isHandRaised = Boolean(state.raisedHands[action.payload])
     },
     setBreakoutRooms: (state, action) => {
       state.breakoutRooms = action.payload
@@ -82,11 +106,15 @@ export const {
   setConnected,
   joinRoom,
   leaveRoom,
+  setRoomEnded,
   setParticipants,
+  setMessages,
   addParticipant,
   removeParticipant,
   addMessage,
   toggleHandRaise,
+  setHandRaised,
+  setCurrentUserId,
   setBreakoutRooms,
   updateWhiteboard,
   setScreenShare,

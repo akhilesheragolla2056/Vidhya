@@ -1,16 +1,54 @@
 import express from 'express'
+import { randomBytes } from 'node:crypto'
+import mongoose from 'mongoose'
 import MockTest from '../models/MockTest.js'
 import TestAttempt from '../models/TestAttempt.js'
 import UserProgress from '../models/UserProgress.js'
 import VideoProgress from '../models/VideoProgress.js'
 import Certificate from '../models/Certificate.js'
 import Course from '../models/Course.js'
+import User from '../models/User.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = express.Router()
 
+function mergeWatchedRanges(ranges, start, end) {
+  if (end <= start) return ranges
+  const sorted = [...ranges, { start, end }].sort((left, right) => left.start - right.start)
+  const merged = []
+  for (const range of sorted) {
+    const previous = merged.at(-1)
+    if (!previous || range.start > previous.end) merged.push({ ...range })
+    else previous.end = Math.max(previous.end, range.end)
+  }
+  return merged
+}
+
+const watchedRangeTotal = ranges => ranges.reduce((sum, range) => sum + range.end - range.start, 0)
+
 // ==================== MOCK TESTS ====================
+
+// @route   GET /api/tests
+// @desc    List published tests without exposing answer keys
+// @access  Public
+router.get('/', async (req, res, next) => {
+  try {
+    const tests = await MockTest.find({ isPublished: true })
+      .select('title description course duration totalPoints passingScore questions._id createdAt')
+      .populate('course', 'title category')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean()
+
+    res.json({
+      success: true,
+      data: tests.map(test => ({ ...test, totalQuestions: test.questions?.length || 0, questions: undefined })),
+    })
+  } catch (error) {
+    next(error)
+  }
+})
 
 // @route   GET /api/tests/course/:courseId
 // @desc    Get mock tests for a course
@@ -38,9 +76,13 @@ router.get('/course/:courseId', async (req, res, next) => {
 // @access  Private
 router.get('/:testId', authMiddleware, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.testId)) throw new ApiError(400, 'Invalid test ID')
     const test = await MockTest.findById(req.params.testId)
 
     if (!test) {
+      throw new ApiError(404, 'Test not found')
+    }
+    if (!test.isPublished && req.user.role !== 'admin' && test.createdBy?.toString() !== req.user._id.toString()) {
       throw new ApiError(404, 'Test not found')
     }
 
@@ -69,7 +111,8 @@ router.get('/:testId', authMiddleware, async (req, res, next) => {
 // @access  Private
 router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
   try {
-    const { answers } = req.body
+    if (!mongoose.isValidObjectId(req.params.testId)) throw new ApiError(400, 'Invalid test ID')
+    const answers = Array.isArray(req.body.answers) ? req.body.answers : []
     const userId = req.user._id
     const testId = req.params.testId
 
@@ -77,12 +120,24 @@ router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
     if (!test) {
       throw new ApiError(404, 'Test not found')
     }
+    if (!test.isPublished && req.user.role !== 'admin' && test.createdBy?.toString() !== userId.toString()) {
+      throw new ApiError(404, 'Test not found')
+    }
 
-    // Calculate score
+    // Calculate score from the points assigned to each question.
+    const totalPoints = test.questions.reduce((sum, question) => sum + (question.points || 0), 0)
+    if (!totalPoints) throw new ApiError(400, 'This test has no scored questions')
+
     let score = 0
     const evaluatedAnswers = test.questions.map((question, idx) => {
       const userAnswer = answers[idx]
-      const isCorrect = JSON.stringify(userAnswer) === JSON.stringify(question.correctAnswer)
+      const isCorrect =
+        question.type === 'multiple' && Array.isArray(userAnswer) && Array.isArray(question.correctAnswer)
+          ? userAnswer.length === question.correctAnswer.length &&
+            [...userAnswer].sort().every((answer, index) => answer === [...question.correctAnswer].sort()[index])
+          : question.type === 'text' && typeof userAnswer === 'string' && typeof question.correctAnswer === 'string'
+            ? userAnswer.trim().toLowerCase() === question.correctAnswer.trim().toLowerCase()
+            : JSON.stringify(userAnswer) === JSON.stringify(question.correctAnswer)
 
       if (isCorrect) {
         score += question.points
@@ -96,8 +151,13 @@ router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
       }
     })
 
-    const percentage = Math.round((score / test.totalPoints) * 100)
+    const percentage = Math.round((score / totalPoints) * 100)
     const isPassed = percentage >= test.passingScore
+    const priorAttempts = await TestAttempt.countDocuments({ user: userId, mockTest: testId })
+    const allowedAttempts = (test.retakesAllowed ?? 3) + 1
+    if (priorAttempts >= allowedAttempts) throw new ApiError(400, 'You have used all attempts for this assessment')
+    const parsedStartTime = new Date(req.body.startTime)
+    const startTime = Number.isNaN(parsedStartTime.getTime()) ? new Date() : parsedStartTime
 
     // Create test attempt record
     const attempt = await TestAttempt.create({
@@ -106,39 +166,43 @@ router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
       course: test.course,
       answers: evaluatedAnswers,
       score,
-      totalPoints: test.totalPoints,
+      totalPoints,
       percentage,
       isPassed,
-      startTime: new Date(req.body.startTime),
+      attemptNumber: priorAttempts + 1,
+      startTime,
       endTime: new Date(),
-      timeSpent: req.body.timeSpent || 0,
+      timeSpent: Number.isFinite(Number(req.body.timeSpent))
+        ? Math.min(test.duration * 60, Math.max(0, Math.round(Number(req.body.timeSpent))))
+        : 0,
     })
 
-    // Update user progress
-    await UserProgress.updateOne(
-      { user: userId, 'enrolledCourses.course': test.course },
-      {
-        $inc: {
-          'enrolledCourses.$.mockTestsAttempted': 1,
-          'enrolledCourses.$.mockTestsPassed': isPassed ? 1 : 0,
-        },
-        $set: {
-          'enrolledCourses.$.lastTestAttempt': new Date(),
-          'enrolledCourses.$.bestTestScore': isPassed
-            ? Math.max(
-                percentage,
-                (
-                  await UserProgress.findOne({
-                    user: userId,
-                    'enrolledCourses.course': test.course,
-                  })
-                ).enrolledCourses[0]?.bestTestScore || 0
-              )
-            : undefined,
-        },
-      },
-      { upsert: true }
+    // Maintain the aggregate without relying on a positional update to a missing array entry.
+    const userProgress = await UserProgress.findOneAndUpdate(
+      { user: userId },
+      { $setOnInsert: { user: userId } },
+      { new: true, upsert: true }
     )
+    let courseProgress = userProgress.enrolledCourses.find(
+      enrollment => enrollment.course.toString() === test.course.toString()
+    )
+    if (!courseProgress) {
+      userProgress.enrolledCourses.push({
+        course: test.course,
+        mockTestsAttempted: 1,
+        mockTestsPassed: isPassed ? 1 : 0,
+        bestTestScore: isPassed ? percentage : 0,
+        lastTestAttempt: new Date(),
+      })
+    } else {
+      courseProgress.mockTestsAttempted += 1
+      if (isPassed) {
+        courseProgress.mockTestsPassed += 1
+        courseProgress.bestTestScore = Math.max(courseProgress.bestTestScore || 0, percentage)
+      }
+      courseProgress.lastTestAttempt = new Date()
+    }
+    await userProgress.save()
 
     res.json({
       success: true,
@@ -159,6 +223,7 @@ router.post('/:testId/submit', authMiddleware, async (req, res, next) => {
 // @access  Private
 router.get('/attempts/:courseId', authMiddleware, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.courseId)) throw new ApiError(400, 'Invalid course ID')
     const attempts = await TestAttempt.find({
       user: req.user._id,
       course: req.params.courseId,
@@ -182,53 +247,153 @@ router.get('/attempts/:courseId', authMiddleware, async (req, res, next) => {
 // @access  Private
 router.post('/video', authMiddleware, async (req, res, next) => {
   try {
-    const { course, lessonId, videoUrl, videoDuration, watchedDuration, isCompleted } = req.body
+    const { course: courseId, lessonId, videoUrl } = req.body
+    const videoDuration = Number(req.body.videoDuration)
+    const playheadSeconds = Number(req.body.playheadSeconds)
     const userId = req.user._id
+    if (
+      typeof courseId !== 'string' ||
+      !mongoose.isValidObjectId(courseId) ||
+      typeof lessonId !== 'string' ||
+      !Number.isFinite(videoDuration) ||
+      videoDuration <= 0 ||
+      !Number.isFinite(playheadSeconds)
+    ) {
+      throw new ApiError(400, 'Valid course, lesson, and video progress are required')
+    }
+
+    const courseDocument = await Course.findById(courseId).select('modules')
+    if (!courseDocument) throw new ApiError(404, 'Course not found')
+    const lessons = courseDocument.modules.flatMap(module => module.lessons)
+    const lesson = lessons.find(item => item._id.toString() === lessonId)
+    if (!lesson || lesson.type !== 'video' || !lesson.content?.videoUrl) {
+      throw new ApiError(400, 'Lesson does not contain a trackable video')
+    }
+
+    const now = new Date()
+    const boundedPosition = Math.min(videoDuration, Math.max(0, playheadSeconds))
+    const existingProgress = await VideoProgress.findOne({
+      user: userId,
+      course: courseId,
+      lessonId,
+    })
+    const previousPosition = existingProgress?.lastPosition ?? existingProgress?.furthestPosition ?? 0
+    const elapsedSinceUpdate = existingProgress
+      ? Math.max(0, (now - (existingProgress.updatedAt || existingProgress.createdAt)) / 1000)
+      : 0
+    const forwardDelta = boundedPosition - previousPosition
+    const plausiblePlayback = !existingProgress || (
+      forwardDelta >= 0 && forwardDelta <= elapsedSinceUpdate * 2.5 + 2
+    )
+    const acceptedPlaybackSeconds = plausiblePlayback
+      ? Math.min(Math.max(0, forwardDelta), Math.min(15, elapsedSinceUpdate * 2.5))
+      : 0
+    const activeSecondsAdded = existingProgress
+      ? Math.min(acceptedPlaybackSeconds, elapsedSinceUpdate)
+      : Math.min(boundedPosition, 5)
+    const furthestPosition = Math.max(existingProgress?.furthestPosition || 0, boundedPosition)
+    const priorRanges = existingProgress?.watchedRanges?.length
+      ? existingProgress.watchedRanges.map(range => ({ start: range.start, end: range.end }))
+      : existingProgress?.completionPercentage
+        ? [{ start: 0, end: Math.min(videoDuration, videoDuration * existingProgress.completionPercentage / 100) }]
+        : []
+    const recordRange = acceptedPlaybackSeconds > 0 || !existingProgress
+    const rangeStart = existingProgress
+      ? boundedPosition - acceptedPlaybackSeconds
+      : Math.max(0, boundedPosition - activeSecondsAdded)
+    const watchedRanges = recordRange
+      ? mergeWatchedRanges(priorRanges, rangeStart, boundedPosition)
+      : priorRanges
+    const watchedSeconds = Math.min(videoDuration, watchedRangeTotal(watchedRanges))
+    const completionPercentage = Math.min(100, Math.round((watchedSeconds / videoDuration) * 100))
+    const isCompleted = Boolean(existingProgress?.isCompleted || completionPercentage >= 80)
 
     const videoProgress = await VideoProgress.findOneAndUpdate(
       {
         user: userId,
-        course,
+        course: courseId,
         lessonId,
       },
       {
-        videoDuration,
-        watchedDuration,
-        completionPercentage: Math.round((watchedDuration / videoDuration) * 100),
+        videoUrl: videoUrl || lesson.content.videoUrl,
+        videoDuration: Math.max(1, Math.round(videoDuration)),
+        watchedDuration: furthestPosition,
+        furthestPosition,
+        lastPosition: boundedPosition,
+        watchedSeconds,
+        watchedRanges,
+        activeSeconds: (existingProgress?.activeSeconds || 0) + activeSecondsAdded,
+        completionPercentage,
         isCompleted,
-        completedAt: isCompleted ? new Date() : undefined,
+        completedAt: isCompleted ? existingProgress?.completedAt || now : undefined,
       },
       { upsert: true, new: true }
     )
 
     // Update user progress aggregate
-    if (isCompleted) {
-      const userProgress = await UserProgress.findOne({
+    if (isCompleted && !existingProgress?.isCompleted) {
+      const courseVideos = lessons.filter(
+        item => item.type === 'video' && item.content?.videoUrl
+      )
+      const videoLessonIds = courseVideos.map(item => item._id.toString())
+      const completedVideos = await VideoProgress.find({
         user: userId,
-        'enrolledCourses.course': course,
-      })
+        course: courseId,
+        lessonId: { $in: videoLessonIds },
+        isCompleted: true,
+      }).select('lessonId activeSeconds')
+      const courseCompletionPercentage = courseVideos.length
+        ? Math.round((completedVideos.length / courseVideos.length) * 100)
+        : 0
+      const userProgress = await UserProgress.findOneAndUpdate(
+        { user: userId },
+        { $setOnInsert: { user: userId } },
+        { new: true, upsert: true }
+      )
+      let courseProgress = userProgress.enrolledCourses.find(
+        enrollment => enrollment.course.toString() === courseId
+      )
+      if (!courseProgress) {
+        userProgress.enrolledCourses.push({
+          course: courseId,
+          videoProgress: completedVideos,
+          videosWatched: completedVideos.length,
+          videosCompleted: completedVideos.length,
+          courseCompletionPercentage,
+          lastActivityDate: now,
+        })
+      } else {
+        courseProgress.videoProgress = completedVideos
+        courseProgress.videosWatched = completedVideos.length
+        courseProgress.videosCompleted = completedVideos.length
+        courseProgress.courseCompletionPercentage = courseCompletionPercentage
+        courseProgress.isCompleted = courseCompletionPercentage === 100
+        courseProgress.completedAt = courseProgress.isCompleted
+          ? courseProgress.completedAt || now
+          : undefined
+        courseProgress.lastActivityDate = now
+      }
 
-      if (userProgress) {
-        const courseProgress = userProgress.enrolledCourses.find(
-          e => e.course.toString() === course
-        )
+      const userVideoTotals = await VideoProgress.aggregate([
+        { $match: { user: userId } },
+        { $group: { _id: null, seconds: { $sum: '$activeSeconds' } } },
+      ])
+      userProgress.totalLearningHours = Number(
+        ((userVideoTotals[0]?.seconds || 0) / 3600).toFixed(2)
+      )
+      userProgress.lastActiveDate = now
+      await userProgress.save()
 
-        if (courseProgress) {
-          const totalVideos = courseProgress.videoProgress.length
-          const completed = courseProgress.videoProgress.filter(v => v.isCompleted).length
-          const completionPercentage = Math.round((completed / totalVideos) * 100)
-
-          await UserProgress.updateOne(
-            { user: userId, 'enrolledCourses.course': course },
-            {
-              $set: {
-                'enrolledCourses.$.videosCompleted': completed,
-                'enrolledCourses.$.courseCompletionPercentage': completionPercentage,
-                'enrolledCourses.$.lastActivityDate': new Date(),
-              },
-            }
-          )
-        }
+      const learner = await User.findById(userId)
+      const enrollment = learner?.enrolledCourses.find(
+        item => item.course.toString() === courseId
+      )
+      if (enrollment) {
+        if (!enrollment.completedLessons.includes(lessonId)) enrollment.completedLessons.push(lessonId)
+        enrollment.progress = lessons.length
+          ? Math.round((enrollment.completedLessons.length / lessons.length) * 100)
+          : 0
+        await learner.save()
       }
     }
 
@@ -249,16 +414,47 @@ router.get('/user/:userId', authMiddleware, async (req, res, next) => {
     if (req.user._id.toString() !== req.params.userId && req.user.role !== 'admin') {
       throw new ApiError(403, 'Unauthorized')
     }
+    if (!mongoose.isValidObjectId(req.params.userId)) {
+      throw new ApiError(400, 'Invalid user ID')
+    }
 
-    const progress = await UserProgress.findOne({
-      user: req.params.userId,
-    })
-      .populate('enrolledCourses.course', 'title thumbnail category')
-      .lean()
+    const targetUserId = new mongoose.Types.ObjectId(req.params.userId)
+    const [progress, user, videoTotals, certificatesEarned] = await Promise.all([
+      UserProgress.findOne({ user: targetUserId })
+        .populate('enrolledCourses.course', 'title thumbnail category')
+        .lean(),
+      User.findById(targetUserId).select('progress enrolledCourses'),
+      VideoProgress.aggregate([
+        { $match: { user: targetUserId } },
+        {
+          $group: {
+            _id: null,
+            activeSeconds: { $sum: '$activeSeconds' },
+            lessonsCompleted: { $sum: { $cond: ['$isCompleted', 1, 0] } },
+          },
+        },
+      ]),
+      Certificate.countDocuments({ user: targetUserId }),
+    ])
+
+    const completedCourses = (progress?.enrolledCourses || []).filter(
+      enrollment => enrollment.isCompleted || enrollment.courseCompletionPercentage >= 100
+    ).length
+    const summary = {
+      totalCoursesEnrolled: user?.enrolledCourses.length || 0,
+      coursesCompleted: completedCourses,
+      lessonsCompleted: videoTotals[0]?.lessonsCompleted || 0,
+      totalLearningHours: Number(((videoTotals[0]?.activeSeconds || 0) / 3600).toFixed(1)),
+      currentStreak: user?.progress.streakDays || 0,
+      totalXP: user?.progress.totalXP || 0,
+      level: user?.progress.level || 1,
+      certificatesEarned,
+    }
 
     res.json({
       success: true,
       data: progress,
+      summary,
     })
   } catch (error) {
     next(error)
@@ -272,16 +468,10 @@ router.get('/user/:userId', authMiddleware, async (req, res, next) => {
 // @access  Private
 router.post('/generate', authMiddleware, async (req, res, next) => {
   try {
-    const { courseId, testScore, videosCompletionPercentage } = req.body
+    const { courseId } = req.body
     const userId = req.user._id
-
-    // Verify course completion requirements
-    if (videosCompletionPercentage < 80) {
-      throw new ApiError(400, 'Videos must be 80% complete')
-    }
-
-    if (testScore < 70) {
-      throw new ApiError(400, 'Must score 70% or higher on test')
+    if (typeof courseId !== 'string' || !mongoose.isValidObjectId(courseId)) {
+      throw new ApiError(400, 'A valid course is required')
     }
 
     // Check if certificate already exists
@@ -298,18 +488,46 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
       })
     }
 
-    const course = await Course.findById(courseId)
+    const [course, isEnrolled] = await Promise.all([
+      Course.findById(courseId),
+      User.exists({ _id: userId, 'enrolledCourses.course': courseId }),
+    ])
     if (!course) {
       throw new ApiError(404, 'Course not found')
     }
+    if (!isEnrolled) throw new ApiError(403, 'Enroll in this course before requesting its certificate')
+
+    const [videoProgress, bestPassingAttempt] = await Promise.all([
+      VideoProgress.find({ user: userId, course: courseId }),
+      TestAttempt.findOne({ user: userId, course: courseId, isPassed: true }).sort({
+        percentage: -1,
+        createdAt: -1,
+      }),
+    ])
+
+    const courseVideoIds = course.modules
+      .flatMap(module => module.lessons)
+      .filter(lesson => lesson.type === 'video' && lesson.content?.videoUrl)
+      .map(lesson => lesson._id.toString())
+    const completedLessonIds = new Set(
+      videoProgress
+        .filter(progress => progress.isCompleted && courseVideoIds.includes(progress.lessonId))
+        .map(progress => progress.lessonId)
+    )
+    const videosCompletionPercentage = courseVideoIds.length
+      ? Math.round((completedLessonIds.size / courseVideoIds.length) * 100)
+      : 0
+    const testScore = bestPassingAttempt?.percentage || 0
+
+    if (videosCompletionPercentage < 80) {
+      throw new ApiError(400, 'Complete at least 80% of the course lessons first')
+    }
+    if (testScore < 70) {
+      throw new ApiError(400, 'Pass a course test with at least 70% before requesting a certificate')
+    }
 
     // Calculate total learning hours
-    const videoProgress = await VideoProgress.find({
-      user: userId,
-      course: courseId,
-    })
-
-    const totalSeconds = videoProgress.reduce((sum, v) => sum + (v.watchedDuration || 0), 0)
+    const totalSeconds = videoProgress.reduce((sum, v) => sum + (v.activeSeconds || 0), 0)
     const totalHours = Math.round(totalSeconds / 3600)
 
     const certificate = await Certificate.create({
@@ -320,15 +538,17 @@ router.post('/generate', authMiddleware, async (req, res, next) => {
       testScore,
       testPassingScore: 70,
       totalLearningHours: totalHours,
-      verificationCode: Math.random().toString(36).substring(2, 10).toUpperCase(),
+      verificationCode: randomBytes(8).toString('hex').toUpperCase(),
     })
 
     // Increment user's certificate count
     await UserProgress.updateOne(
       { user: userId },
       {
+        $setOnInsert: { user: userId },
         $inc: { certificatesEarned: 1 },
-      }
+      },
+      { upsert: true }
     )
 
     res.status(201).json({
@@ -360,13 +580,29 @@ router.get('/user', authMiddleware, async (req, res, next) => {
   }
 })
 
+// @route   GET /api/progress/certificates/user
+// @desc    Legacy certificate list URL
+// @access  Private
+router.get('/certificates/user', authMiddleware, async (req, res, next) => {
+  try {
+    const certificates = await Certificate.find({ user: req.user._id })
+      .populate('course', 'title category thumbnail')
+      .sort({ issueDate: -1 })
+
+    res.json({ success: true, data: certificates })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // @route   GET /api/certificates/:certificateId
 // @desc    Get certificate details
 // @access  Public
 router.get('/:certificateId', async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.certificateId)) throw new ApiError(400, 'Invalid certificate ID')
     const certificate = await Certificate.findById(req.params.certificateId)
-      .populate('user', 'name email')
+      .populate('user', 'name')
       .populate('course', 'title category')
 
     if (!certificate) {

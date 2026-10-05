@@ -14,6 +14,8 @@ import {
   clearLatestResult,
 } from '../store/slices/gameSlice'
 
+const EMPTY_LEADERBOARD = []
+
 const TOTAL_TIME = 90
 
 const QUESTION_BANK = [
@@ -116,7 +118,7 @@ export default function ScienceQuest() {
 
   const scienceStats = stats?.overall?.science_quest || {}
   const missions = dailyMissions?.missions || []
-  const topPlayers = leaderboard?.science_quest || []
+  const topPlayers = leaderboard?.science_quest ?? EMPTY_LEADERBOARD
   const currentQuestion = questions[index]
   const accuracy = attempted > 0 ? Math.round((correct / attempted) * 100) : 0
 

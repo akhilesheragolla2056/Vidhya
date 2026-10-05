@@ -1,83 +1,85 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Share2, Eye } from 'lucide-react'
+import { useSelector } from 'react-redux'
+import { AlertCircle, Download, Eye, Share2, X } from 'lucide-react'
 import api from '../services/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import { coursesData } from '../data/coursesData'
+import { getCourseProgress } from '../utils/progressTracker'
+import downloadCourseCertificate from '../utils/downloadCourseCertificate'
 
-// Certificate Preview Component
-function CertificatePreview({ certificate, onClose }) {
-  const handleDownload = () => {
-    // In a real app, this would generate a PDF
-    console.log('Downloading certificate:', certificate._id)
-    alert('Certificate download functionality would be implemented with PDF generation library')
-  }
+const formatDate = value => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleDateString()
+}
 
+function CertificatePreview({ certificate, userName, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-96 overflow-y-auto">
-        {/* Certificate Design */}
-        <div className="bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 p-12 border-8 border-amber-800">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="certificate-preview-title"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+        <article className="certificate-print-sheet border-8 border-amber-800 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 p-8 md:p-12">
           <div className="text-center">
-            {/* Decorative elements */}
-            <div className="flex justify-center gap-4 mb-6">
-              <div className="w-24 h-1 bg-amber-700"></div>
-              <span className="text-4xl">⭐</span>
-              <div className="w-24 h-1 bg-amber-700"></div>
+            <div className="mb-6 flex items-center justify-center gap-4" aria-hidden="true">
+              <div className="h-1 w-16 bg-amber-700 md:w-24" />
+              <span className="text-4xl">★</span>
+              <div className="h-1 w-16 bg-amber-700 md:w-24" />
             </div>
-
-            {/* Title */}
-            <h1 className="text-5xl font-bold text-amber-900 mb-2">Certificate</h1>
-            <p className="text-amber-700 text-lg mb-8">of Completion</p>
-
-            {/* Content */}
-            <p className="text-amber-800 mb-2">This is proudly presented to</p>
-            <p className="text-3xl font-bold text-amber-900 mb-6">
-              {certificate.user?.name || 'Student'}
+            <h1 id="certificate-preview-title" className="mb-2 text-4xl font-bold text-amber-900 md:text-5xl">
+              Certificate
+            </h1>
+            <p className="mb-8 text-lg text-amber-700">of Completion</p>
+            <p className="mb-2 text-amber-800">Presented to</p>
+            <p className="mb-6 text-3xl font-bold text-amber-900">
+              {certificate.user?.name || userName || 'Learner'}
             </p>
-
-            <p className="text-amber-800 mb-2">For successfully completing the course</p>
-            <p className="text-2xl font-bold text-amber-900 mb-8">{certificate.course?.title}</p>
-
-            {/* Details */}
+            <p className="mb-2 text-amber-800">For successfully completing</p>
+            <p className="mb-8 text-2xl font-bold text-amber-900">
+              {certificate.course?.title || 'Course'}
+            </p>
             <div className="mb-8 space-y-2 text-amber-800">
               <p>
-                Completion Date:{' '}
-                <span className="font-semibold">
-                  {new Date(certificate.completionDate).toLocaleDateString()}
-                </span>
+                Completion date: <span className="font-semibold">{formatDate(certificate.completionDate || certificate.issueDate)}</span>
               </p>
               <p>
-                Certificate Number:{' '}
-                <span className="font-mono font-semibold">{certificate.certificateNumber}</span>
+                Certificate number: <span className="font-mono font-semibold">{certificate.certificateNumber}</span>
               </p>
               <p>
-                Test Score: <span className="font-semibold">{certificate.testScore}%</span>
+                Test score: <span className="font-semibold">{certificate.testScore}%</span>
               </p>
+              {certificate.verificationCode && (
+                <p>
+                  Verification code: <span className="font-mono font-semibold">{certificate.verificationCode}</span>
+                </p>
+              )}
             </div>
-
-            {/* Signature line */}
-            <div className="flex justify-around mt-12 pt-8 border-t-2 border-amber-700">
-              <div className="text-center">
-                <p className="text-amber-800 font-semibold">Vidhya Team</p>
-              </div>
+            <div className="mt-12 border-t-2 border-amber-700 pt-8">
+              <p className="font-semibold text-amber-800">Vidhya Learning</p>
             </div>
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-4 p-6 bg-gray-50 border-t">
+        </article>
+        <div className="certificate-print-actions flex flex-wrap gap-3 border-t bg-gray-50 p-5">
           <button
-            onClick={handleDownload}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-all"
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 font-semibold text-white transition hover:bg-primary-dark"
           >
-            <Download size={20} />
-            Download PDF
+            <Download size={18} /> Print / Save as PDF
           </button>
           <button
+            type="button"
             onClick={onClose}
-            className="flex-1 px-4 py-3 bg-gray-200 text-text-primary rounded-lg font-semibold hover:bg-gray-300 transition-all"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-gray-200 px-5 py-3 font-semibold text-text-primary transition hover:bg-gray-300"
           >
-            Close
+            <X size={18} /> Close
           </button>
         </div>
       </div>
@@ -85,122 +87,199 @@ function CertificatePreview({ certificate, onClose }) {
   )
 }
 
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+
+  const input = document.createElement('textarea')
+  input.value = text
+  input.setAttribute('readonly', '')
+  input.style.position = 'fixed'
+  input.style.opacity = '0'
+  document.body.appendChild(input)
+  input.select()
+  const copied = document.execCommand('copy')
+  input.remove()
+  if (!copied) throw new Error('Clipboard is unavailable')
+}
+
 function Certificates() {
   const [selectedCert, setSelectedCert] = useState(null)
+  const [notice, setNotice] = useState('')
+  const currentUser = useSelector(state => state.user.currentUser)
+  const userName = currentUser?.name || currentUser?.email?.split('@')[0] || 'Learner'
+  const userKey = currentUser?._id || currentUser?.id || currentUser?.email || 'learner'
 
-  const { data: certificatesData, isLoading } = useQuery({
-    queryKey: ['certificates'],
+  const {
+    data: certificates = [],
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ['certificates', userKey],
+    refetchOnMount: 'always',
     queryFn: async () => {
-      const res = await api.get('/progress/certificates/user')
-      return res.data.data || []
+      const localCertificates = coursesData.flatMap(course => {
+        const courseProgress = getCourseProgress(course.id)
+        const quizScores = course.playlist.map(lesson => courseProgress.mcqScores[lesson.id])
+        const allQuizzesPassed = quizScores.length > 0 && quizScores.every(score => score?.percentage >= 60)
+        if (!allQuizzesPassed) return []
+
+        const completionDate = courseProgress.completedAt || courseProgress.lastAccessed || new Date().toISOString()
+        const testScore = Math.round(
+          quizScores.reduce((total, score) => total + score.percentage, 0) / quizScores.length
+        )
+
+        return [{
+          _id: `local-${course.id}`,
+          localOnly: true,
+          user: { name: userName },
+          course: { _id: course.id, title: course.title },
+          issueDate: completionDate,
+          completionDate,
+          testScore,
+          certificateNumber: `LOCAL-${course.id.toUpperCase()}`,
+        }]
+      })
+
+      let serverCertificates = []
+      try {
+        const response = await api.get('/progress/certificates/user')
+        serverCertificates = Array.isArray(response.data.data) ? response.data.data : []
+      } catch (requestError) {
+        if (!localCertificates.length) throw requestError
+      }
+
+      const serverCourseIds = new Set(serverCertificates.map(certificate =>
+        String(certificate.course?._id || certificate.course)
+      ))
+      return [
+        ...serverCertificates,
+        ...localCertificates.filter(certificate => !serverCourseIds.has(String(certificate.course._id))),
+      ]
     },
   })
 
   if (isLoading) return <LoadingSpinner />
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-5xl font-bold text-text-primary mb-4">My Certificates</h1>
-          <p className="text-xl text-text-secondary">
-            Showcase your achievements and learning progress
+    <main className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 p-4 md:p-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8 md:mb-12">
+          <h1 className="mb-3 text-3xl font-bold text-text-primary md:text-5xl">My Certificates</h1>
+          <p className="text-lg text-text-secondary">View, download, and print your course achievements.</p>
+        </header>
+
+        {notice && (
+          <p role="status" className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+            {notice}
           </p>
-        </div>
+        )}
 
-        {certificatesData && certificatesData.length > 0 ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {certificatesData.map(cert => (
-              <div
-                key={cert._id}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all transform hover:scale-105"
+        {error ? (
+          <div role="alert" className="rounded-2xl border border-red-200 bg-white p-8 text-center">
+            <AlertCircle className="mx-auto mb-3 text-red-600" size={32} />
+            <h2 className="mb-2 text-xl font-bold text-text-primary">Certificates could not be loaded</h2>
+            <p className="text-text-secondary">Check your connection and try again.</p>
+          </div>
+        ) : certificates.length ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {certificates.map(certificate => (
+              <article
+                key={certificate._id}
+                className="overflow-hidden rounded-2xl border border-amber-100 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
-                {/* Certificate Preview Thumbnail */}
-                <div className="bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 p-8 relative">
+                <div className="relative bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 p-7">
                   <div className="text-center">
-                    <p className="text-3xl font-bold text-amber-900 mb-2">Certificate</p>
-                    <p className="text-amber-700 font-semibold text-sm">of Completion</p>
-                    <p className="text-amber-800 mt-4 text-xs max-h-12 overflow-hidden">
-                      {cert.course?.title}
+                    <p className="mb-1 text-3xl font-bold text-amber-900">Certificate</p>
+                    <p className="text-sm font-semibold text-amber-700">of Completion</p>
+                    <p className="mt-4 line-clamp-2 text-sm text-amber-800">
+                      {certificate.course?.title || 'Completed course'}
                     </p>
                   </div>
-                  <div className="absolute top-2 right-2 text-3xl">⭐</div>
+                  <div className="absolute right-3 top-2 text-2xl text-amber-700" aria-hidden="true">★</div>
                 </div>
-
-                {/* Details */}
-                <div className="p-6">
-                  <h3 className="font-bold text-text-primary mb-2">{cert.course?.title}</h3>
-                  <div className="space-y-2 text-sm text-text-secondary mb-6">
-                    <p>
-                      <span className="font-semibold">Issued:</span>{' '}
-                      {new Date(cert.issueDate).toLocaleDateString()}
-                    </p>
-                    <p>
-                      <span className="font-semibold">Score:</span> {cert.testScore}%
-                    </p>
-                    <p className="text-xs font-mono text-gray-500">{cert.certificateNumber}</p>
+                <div className="p-5">
+                  <h2 className="mb-3 font-bold text-text-primary">
+                    {certificate.course?.title || 'Completed course'}
+                  </h2>
+                  <div className="mb-5 space-y-2 text-sm text-text-secondary">
+                    <p>Issued: {formatDate(certificate.issueDate || certificate.completionDate)}</p>
+                    <p>Test score: {certificate.testScore}%</p>
+                    <p className="break-all font-mono text-xs">{certificate.certificateNumber}</p>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     <button
-                      onClick={() => setSelectedCert(cert)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-100 text-primary rounded-lg font-semibold hover:bg-blue-200 transition-all text-sm"
+                      type="button"
+                      onClick={() => setSelectedCert(certificate)}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-50 px-2 py-2 text-sm font-semibold text-blue-800 hover:bg-blue-100"
                     >
-                      <Eye size={16} />
-                      View
+                      <Eye size={16} /> View
                     </button>
                     <button
-                      onClick={() => {
-                        console.log('Download cert:', cert._id)
-                        alert('PDF download functionality would be implemented')
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg font-semibold hover:bg-green-200 transition-all text-sm"
+                      type="button"
+                      onClick={() => setSelectedCert(certificate)}
+                      className="inline-flex items-center justify-center gap-1 rounded-lg bg-emerald-50 px-2 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-100"
                     >
-                      <Download size={16} />
-                      Download
+                      <Download size={16} /> Print
                     </button>
-                    <button
-                      onClick={() => {
-                        const url = `${window.location.origin}/certificates/${cert._id}`
-                        navigator.clipboard.writeText(url)
-                        alert('Certificate link copied to clipboard!')
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200 transition-all text-sm"
-                    >
-                      <Share2 size={16} />
-                      Share
-                    </button>
+                    {certificate.localOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => downloadCourseCertificate({
+                          learnerName: certificate.user?.name || userName,
+                          courseTitle: certificate.course?.title,
+                          completedAt: certificate.completionDate || certificate.issueDate,
+                        })}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-violet-50 px-2 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-100"
+                      >
+                        <Download size={16} /> Download
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const url = `${window.location.origin}/certificates/${certificate._id}`
+                          try {
+                            await copyText(url)
+                            setNotice('Verification link copied to the clipboard.')
+                          } catch {
+                            setNotice(`Copy this verification link: ${url}`)
+                          }
+                        }}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg bg-violet-50 px-2 py-2 text-sm font-semibold text-violet-800 hover:bg-violet-100"
+                      >
+                        <Share2 size={16} /> Share
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         ) : (
-          // Empty State
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <div className="text-6xl mb-4">📜</div>
-            <h2 className="text-2xl font-bold text-text-primary mb-2">No Certificates Yet</h2>
-            <p className="text-text-secondary mb-6 max-w-md mx-auto">
-              Complete your courses and pass the mock tests to earn certificates. Keep learning and
-              achieving!
+          <div className="rounded-2xl border border-amber-100 bg-white p-8 text-center shadow-sm md:p-12">
+            <div className="mb-4 text-5xl" aria-hidden="true">▤</div>
+            <h2 className="mb-2 text-2xl font-bold text-text-primary">No certificates yet</h2>
+            <p className="mx-auto mb-6 max-w-md text-text-secondary">
+              Pass all lesson quizzes in a course and its certificate will appear here.
             </p>
-            <a
-              href="/courses"
-              className="inline-block px-8 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary-dark transition-all"
-            >
+            <Link to="/courses" className="inline-flex rounded-lg bg-primary px-6 py-3 font-semibold text-white hover:bg-primary-dark">
               Browse Courses
-            </a>
+            </Link>
           </div>
         )}
       </div>
 
-      {/* Certificate Preview Modal */}
       {selectedCert && (
-        <CertificatePreview certificate={selectedCert} onClose={() => setSelectedCert(null)} />
+        <CertificatePreview
+          certificate={selectedCert}
+          userName={currentUser?.name}
+          onClose={() => setSelectedCert(null)}
+        />
       )}
-    </div>
+    </main>
   )
 }
 

@@ -16,11 +16,10 @@ import {
   Heart,
   Briefcase,
   TrendingUp,
-  Filter,
   Grid3X3,
   LayoutList,
 } from 'lucide-react'
-import coursesAPI from '../services/api'
+import { coursesAPI } from '../services/api'
 const categoryMeta = {
   'AI/ML': { icon: Brain, color: 'from-indigo-500 to-blue-500' },
   Programming: { icon: Code, color: 'from-blue-500 to-cyan-500' },
@@ -239,8 +238,6 @@ function Courses() {
   // Fetch courses from API
   const {
     data: apiCourses,
-    isLoading,
-    isError,
   } = useQuery({
     queryKey: ['courses'],
     queryFn: async () => {
@@ -268,8 +265,6 @@ function Courses() {
     const matchesCategory = selectedCategory === 'All' || course.category === selectedCategory
     return matchesSearch && matchesCategory
   })
-
-  const noCourses = !isLoading && !isError && allCourses.length === 0
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">

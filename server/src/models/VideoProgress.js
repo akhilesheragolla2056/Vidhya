@@ -18,7 +18,18 @@ const videoProgressSchema = new mongoose.Schema(
     },
     videoUrl: String,
     videoDuration: Number, // in seconds
-    watchedDuration: Number, // in seconds
+    watchedDuration: Number, // furthest playback position for older clients
+    lastPosition: Number, // most recently observed playhead position
+    watchedSeconds: { type: Number, default: 0 },
+    watchedRanges: [
+      {
+        _id: false,
+        start: { type: Number, required: true },
+        end: { type: Number, required: true },
+      },
+    ],
+    activeSeconds: { type: Number, default: 0 },
+    furthestPosition: { type: Number, default: 0 },
     completionPercentage: {
       type: Number,
       default: 0,

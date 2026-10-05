@@ -13,7 +13,6 @@ import {
   XCircle,
   RotateCcw,
   Zap,
-  BookOpen,
   Ruler,
   TrendingUp,
   PieChart,

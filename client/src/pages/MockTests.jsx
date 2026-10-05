@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   Clock,
@@ -14,6 +15,7 @@ import {
   RotateCcw,
   BookOpen,
 } from 'lucide-react'
+import api from '../services/api'
 
 const mockTests = [
   {
@@ -24,7 +26,7 @@ const mockTests = [
     questions: 10,
     duration: 15,
     passingScore: 70,
-    questionBank: 'general',
+    questionBank: 'python',
   },
   {
     id: 2,
@@ -34,7 +36,7 @@ const mockTests = [
     questions: 15,
     duration: 20,
     passingScore: 75,
-    questionBank: 'general',
+    questionBank: 'machineLearning',
   },
   {
     id: 3,
@@ -44,7 +46,7 @@ const mockTests = [
     questions: 12,
     duration: 18,
     passingScore: 70,
-    questionBank: 'general',
+    questionBank: 'webDevelopment',
   },
   {
     id: 4,
@@ -79,7 +81,7 @@ const mockTests = [
 ]
 
 const questionBanks = {
-  general: [
+  python: [
   {
     id: 1,
     question: 'What is Python primarily used for?',
@@ -155,6 +157,37 @@ const questionBanks = {
     options: ['exit', 'break', 'stop', 'end'],
     correctAnswer: 1,
   },
+  ],
+  machineLearning: [
+    { id: 1, question: 'What is supervised learning?', options: ['Learning from labeled examples', 'Learning without any data', 'Grouping data by distance only', 'Writing rules by hand'], correctAnswer: 0 },
+    { id: 2, question: 'Which task is a classification problem?', options: ['Predicting house prices', 'Estimating tomorrow’s temperature', 'Sorting email into spam or not spam', 'Forecasting sales totals'], correctAnswer: 2 },
+    { id: 3, question: 'What does a training set help a model do?', options: ['Learn patterns from examples', 'Measure final performance only', 'Store the source code', 'Replace all test data'], correctAnswer: 0 },
+    { id: 4, question: 'What is overfitting?', options: ['A model performs well on new data only', 'A model memorizes training data and generalizes poorly', 'A model has too few features', 'A model trains without labels'], correctAnswer: 1 },
+    { id: 5, question: 'Why keep a test set separate from training data?', options: ['To make training faster', 'To estimate performance on unseen data', 'To increase the number of labels', 'To avoid choosing a model'], correctAnswer: 1 },
+    { id: 6, question: 'Which measure is often useful when classes are imbalanced?', options: ['F1 score', 'File size', 'Training duration', 'Number of columns'], correctAnswer: 0 },
+    { id: 7, question: 'What does a feature represent?', options: ['An input attribute used for prediction', 'The answer key only', 'The model’s final score', 'A type of computer hardware'], correctAnswer: 0 },
+    { id: 8, question: 'What is an example of unsupervised learning?', options: ['Clustering customers by behavior', 'Predicting labeled exam results', 'Classifying known flower species', 'Detecting spam from labeled emails'], correctAnswer: 0 },
+    { id: 9, question: 'What does a loss function measure?', options: ['How far predictions are from target values', 'How much memory a screen uses', 'How many rows are in a file', 'How quickly users enter data'], correctAnswer: 0 },
+    { id: 10, question: 'What is regularization used for?', options: ['Reducing overfitting', 'Adding duplicate data', 'Removing the test set', 'Increasing label noise'], correctAnswer: 0 },
+    { id: 11, question: 'What is cross-validation useful for?', options: ['Comparing model performance across data splits', 'Encrypting datasets', 'Writing labels automatically', 'Replacing feature selection'], correctAnswer: 0 },
+    { id: 12, question: 'Which algorithm is commonly used for a simple binary classifier?', options: ['Logistic regression', 'K-means', 'Principal component analysis', 'Apriori'], correctAnswer: 0 },
+    { id: 13, question: 'What does a neural network learn during training?', options: ['Weights that map inputs to predictions', 'The computer’s operating system', 'A fixed list of answers', 'The order of rows in a file'], correctAnswer: 0 },
+    { id: 14, question: 'What is data leakage?', options: ['Training uses information that would not be available at prediction time', 'A dataset has a missing file extension', 'A model uses too few features', 'A chart displays the wrong color'], correctAnswer: 0 },
+    { id: 15, question: 'Why scale numeric features for some algorithms?', options: ['To put values on comparable ranges', 'To turn labels into images', 'To remove the need for evaluation', 'To guarantee perfect predictions'], correctAnswer: 0 },
+  ],
+  webDevelopment: [
+    { id: 1, question: 'What is HTML primarily used to define?', options: ['Page structure and content', 'Database queries', 'Network routing', 'Image compression'], correctAnswer: 0 },
+    { id: 2, question: 'Which HTML element is best for a page’s main navigation?', options: ['<nav>', '<span>', '<small>', '<canvas>'], correctAnswer: 0 },
+    { id: 3, question: 'What does CSS control?', options: ['Presentation and layout', 'Server authentication', 'Database storage', 'DNS records'], correctAnswer: 0 },
+    { id: 4, question: 'Which CSS layout tool is designed for arranging items in one dimension?', options: ['Flexbox', 'SQL', 'SVG', 'WebSocket'], correctAnswer: 0 },
+    { id: 5, question: 'What does JavaScript commonly add to a web page?', options: ['Interactive behavior', 'A domain name', 'A database server', 'A browser engine'], correctAnswer: 0 },
+    { id: 6, question: 'What does the DOM represent?', options: ['A structured representation of a page that scripts can access', 'A CSS color palette', 'A web hosting plan', 'A media file format'], correctAnswer: 0 },
+    { id: 7, question: 'What is responsive design?', options: ['A layout that adapts to different screen sizes', 'A page that only works on phones', 'A faster database query', 'A type of image format'], correctAnswer: 0 },
+    { id: 8, question: 'What does HTTPS add to HTTP?', options: ['Encrypted transport using TLS', 'Automatic image editing', 'A new HTML version', 'A larger screen resolution'], correctAnswer: 0 },
+    { id: 9, question: 'Why should a form input have an associated label?', options: ['It improves usability and accessible identification', 'It changes the server language', 'It compresses the submitted data', 'It hides validation messages'], correctAnswer: 0 },
+    { id: 10, question: 'What is an accessible purpose for image alt text?', options: ['Describe meaningful image content to users who cannot see it', 'Set the image’s file size', 'Choose its CSS position', 'Make every image decorative'], correctAnswer: 0 },
+    { id: 11, question: 'What is Git commonly used for?', options: ['Tracking changes to source code', 'Styling web pages', 'Serving domain names', 'Editing database schemas in production'], correctAnswer: 0 },
+    { id: 12, question: 'Which HTML attribute helps a responsive page match the device viewport?', options: ['name="viewport"', 'role="button"', 'alt="responsive"', 'target="viewport"'], correctAnswer: 0 },
   ],
   soilScience: [
     {
@@ -344,11 +377,21 @@ const questionBanks = {
   ],
 }
 
-const getQuestionsForTest = test => questionBanks[test?.questionBank] || questionBanks.general
+const getQuestionsForTest = test => questionBanks[test?.questionBank] || questionBanks.python
 
 export default function MockTests() {
   const { isAuthenticated } = useSelector(state => state.user)
   const navigate = useNavigate()
+  const {
+    data: publishedTests = [],
+    isError: publishedTestsError,
+  } = useQuery({
+    queryKey: ['published-tests'],
+    queryFn: async () => {
+      const response = await api.get('/tests')
+      return Array.isArray(response.data?.data) ? response.data.data : []
+    },
+  })
   const [selectedTest, setSelectedTest] = useState(null)
   const [isTestActive, setIsTestActive] = useState(false)
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -358,12 +401,15 @@ export default function MockTests() {
   const activeQuestions = getQuestionsForTest(selectedTest)
 
   useEffect(() => {
-    if (isTestActive && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
-      return () => clearTimeout(timer)
-    } else if (isTestActive && timeLeft === 0) {
-      handleSubmitTest()
+    if (!isTestActive) return undefined
+    if (timeLeft <= 0) {
+      setIsTestActive(false)
+      setShowResults(true)
+      return undefined
     }
+
+    const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
+    return () => clearTimeout(timer)
   }, [timeLeft, isTestActive])
 
   const handleStartTest = test => {
@@ -631,6 +677,60 @@ export default function MockTests() {
       </div>
 
       <div className="container-custom py-12">
+        <section className="mb-12" aria-labelledby="published-assessments-heading">
+          <div className="mb-5">
+            <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-primary">From your courses</p>
+            <h2 id="published-assessments-heading" className="text-2xl font-bold text-text-primary">
+              Published assessments
+            </h2>
+            <p className="mt-1 text-text-secondary">Assessments created for courses are available here.</p>
+          </div>
+
+          {publishedTestsError ? (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              Published assessments could not be loaded. Your sample mock tests are still available below.
+            </div>
+          ) : publishedTests.length ? (
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {publishedTests.map(test => (
+                <article key={test._id} className="flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                      {test.course?.category || 'Course assessment'}
+                    </span>
+                    {test.course?.title && (
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-xs text-text-secondary">
+                        {test.course.title}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="mb-2 text-lg font-bold text-text-primary">{test.title}</h3>
+                  <p className="mb-5 flex-1 text-sm leading-6 text-text-secondary">
+                    {test.description || 'Check your understanding of this course with a timed assessment.'}
+                  </p>
+                  <div className="mb-5 flex flex-wrap gap-x-4 gap-y-2 text-sm text-text-secondary">
+                    <span className="inline-flex items-center gap-1.5"><BookOpen size={15} />{test.totalQuestions} questions</span>
+                    <span className="inline-flex items-center gap-1.5"><Clock size={15} />{test.duration} min</span>
+                    <span className="inline-flex items-center gap-1.5"><Target size={15} />Pass {test.passingScore}%</span>
+                  </div>
+                  <Link to={`/test/${test._id}`} className="btn-primary inline-flex items-center justify-center gap-2">
+                    <Play size={17} /> Start assessment
+                  </Link>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-gray-300 bg-white p-5 text-sm text-text-secondary">
+              No course assessments have been published yet.
+            </p>
+          )}
+        </section>
+
+        <div className="mb-5">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-primary">Practice anytime</p>
+          <h2 className="text-2xl font-bold text-text-primary">Sample mock tests</h2>
+          <p className="mt-1 text-text-secondary">Use these practice tests to review core topics at your own pace.</p>
+        </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {mockTests.map((test, index) => (
             <motion.div

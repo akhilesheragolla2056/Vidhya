@@ -1,5 +1,7 @@
 import express from 'express'
-import { optionalAuth } from '../middleware/auth.js'
+import { authMiddleware, optionalAuth } from '../middleware/auth.js'
+import LabProgress from '../models/LabProgress.js'
+import { ApiError } from '../middleware/errorHandler.js'
 
 const router = express.Router()
 
@@ -202,59 +204,160 @@ router.get('/:subject/:id', optionalAuth, (req, res) => {
   })
 })
 
-// @route   POST /api/labs/:subject/:id/progress
-// @desc    Save experiment progress
-// @access  Private
-router.post('/:subject/:id/progress', async (req, res) => {
-  const { subject, id } = req.params
-  const { state, completedSteps } = req.body
+const findExperiment = (subject, id) =>
+  experiments[subject.toLowerCase()]?.find(experiment => experiment.id === id)
 
-  // In production, save to database
-  // For now, just acknowledge
-  res.json({
-    success: true,
-    message: 'Progress saved',
-    data: {
-      experimentId: id,
-      subject,
-      completedSteps,
-      savedAt: new Date(),
-    },
-  })
-})
+const cleanState = value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, entry]) => /^[\w-]{1,40}$/.test(key) && (
+        typeof entry === 'boolean' ||
+        (typeof entry === 'number' && Number.isFinite(entry)) ||
+        (typeof entry === 'string' && entry.length <= 500)
+      ))
+      .slice(0, 50)
+  )
+}
 
-// @route   POST /api/labs/:subject/:id/submit
-// @desc    Submit experiment results
-// @access  Private
-router.post('/:subject/:id/submit', async (req, res) => {
-  const { subject, id } = req.params
-  const { results, observations, answers } = req.body
+const boundedNumber = (inputs, key, min, max, fallback) => {
+  const value = inputs[key] ?? fallback
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+    throw new ApiError(400, `${key} must be between ${min} and ${max}`)
+  }
+  return value
+}
 
-  // Calculate score based on answers
-  let score = 0
-  let feedback = []
+const calculateResult = (subject, id, rawInputs) => {
+  const inputs = cleanState(rawInputs)
+  if (!findExperiment(subject, id)) throw new ApiError(404, 'Experiment not found')
 
-  // Mock scoring logic
-  if (results) {
-    score = Math.floor(Math.random() * 30) + 70 // 70-100
-    feedback = [
-      'Great observations recorded!',
-      'Consider exploring the relationship between variables more.',
-      'Your conclusions are well-supported by the data.',
-    ]
+  if (subject === 'chemistry' && id === 'acid-base') {
+    const baseMl = boundedNumber(inputs, 'baseMl', 0, 50, 0)
+    const acidMmol = 2.5 - baseMl * 0.1
+    const totalMl = 25 + baseMl
+    const ph = acidMmol > 0
+      ? -Math.log10((acidMmol / totalMl) * 1000)
+      : acidMmol < 0
+        ? 14 + Math.log10((-acidMmol / totalMl) * 1000)
+        : 7
+    return { inputs: { baseMl }, outputs: { pH: Number(Math.max(0, Math.min(14, ph)).toFixed(2)), neutralizationPointMl: 25 }, observation: `Adding ${baseMl} mL of base gives an estimated pH of ${Math.max(0, Math.min(14, ph)).toFixed(2)}. Equal 0.1 M solutions reach the neutralization point at 25 mL.`, score: 100 }
   }
 
-  res.json({
-    success: true,
-    data: {
-      experimentId: id,
-      subject,
-      score,
-      feedback,
-      xpEarned: Math.floor(score / 10) * 5,
-      completedAt: new Date(),
-    },
-  })
+  if (subject === 'chemistry' && id === 'electrolysis') {
+    const voltage = boundedNumber(inputs, 'voltage', 0, 12, 6)
+    const resistance = boundedNumber(inputs, 'resistance', 1, 100, 10)
+    const current = voltage / resistance
+    return { inputs: { voltage, resistance }, outputs: { currentAmps: Number(current.toFixed(3)), relativeGasRate: Number((current * 100).toFixed(1)) }, observation: `The circuit carries ${current.toFixed(2)} A. Raising voltage or lowering resistance increases the modeled gas-production rate.`, score: 100 }
+  }
+
+  if (subject === 'chemistry' && id === 'combustion') {
+    const oxygenPercent = boundedNumber(inputs, 'oxygenPercent', 0, 100, 50)
+    const complete = oxygenPercent >= 40
+    return { inputs: { oxygenPercent }, outputs: { combustion: complete ? 'complete' : 'incomplete', carbonMonoxideRisk: complete ? 'low' : 'high' }, observation: `${oxygenPercent}% oxygen supports ${complete ? 'more complete combustion, producing mainly carbon dioxide and water' : 'incomplete combustion, with a greater carbon monoxide and soot risk'}.`, score: 100 }
+  }
+
+  if (subject === 'chemistry' && id === 'crystal') {
+    const temperatureC = boundedNumber(inputs, 'temperatureC', 10, 90, 60)
+    const concentration = boundedNumber(inputs, 'concentration', 1, 100, 70)
+    const supersaturated = concentration > 100 - temperatureC * 0.55
+    return { inputs: { temperatureC, concentration }, outputs: { supersaturated }, observation: supersaturated ? 'This solution is supersaturated at the selected temperature, so crystals can form as it cools.' : 'The solution is not yet supersaturated; increase concentration or lower the temperature to encourage crystal growth.', score: 100 }
+  }
+
+  if (subject === 'physics' && id === 'pendulum') {
+    const lengthM = boundedNumber(inputs, 'lengthM', 0.2, 2, 1)
+    const periodSeconds = 2 * Math.PI * Math.sqrt(lengthM / 9.81)
+    return { inputs: { lengthM }, outputs: { periodSeconds: Number(periodSeconds.toFixed(3)), frequencyHz: Number((1 / periodSeconds).toFixed(3)) }, observation: `A ${lengthM.toFixed(2)} m pendulum has a modeled period of ${periodSeconds.toFixed(2)} seconds. A longer pendulum swings more slowly.`, score: 100 }
+  }
+
+  if (subject === 'physics' && id === 'optics') {
+    const incidenceDeg = boundedNumber(inputs, 'incidenceDeg', 0, 80, 30)
+    const refractiveIndex = boundedNumber(inputs, 'refractiveIndex', 1.1, 2.4, 1.5)
+    const ratio = Math.sin((incidenceDeg * Math.PI) / 180) / refractiveIndex
+    const refractionDeg = Math.asin(Math.min(1, ratio)) * (180 / Math.PI)
+    return { inputs: { incidenceDeg, refractiveIndex }, outputs: { refractionDeg: Number(refractionDeg.toFixed(2)) }, observation: `Light enters the selected medium at ${incidenceDeg}°. Snell's law predicts a refracted angle of ${refractionDeg.toFixed(2)}°.`, score: 100 }
+  }
+
+  if (subject === 'biology' && id === 'photosynthesis') {
+    const lightPercent = boundedNumber(inputs, 'lightPercent', 0, 100, 50)
+    const ratePercent = (lightPercent / (lightPercent + 25)) * 100
+    return { inputs: { lightPercent }, outputs: { relativeRatePercent: Number(ratePercent.toFixed(1)) }, observation: `At ${lightPercent}% light intensity, the modelled photosynthesis rate is ${ratePercent.toFixed(1)}% of its maximum; the increase slows near saturation.`, score: 100 }
+  }
+
+  if (subject === 'biology' && id === 'cell-division') {
+    const stages = ['prophase', 'metaphase', 'anaphase', 'telophase']
+    const stage = inputs.stage ?? 'prophase'
+    if (!stages.includes(stage)) throw new ApiError(400, 'Choose a valid mitosis stage')
+    return { inputs: { stage }, outputs: { stage }, observation: `${stage[0].toUpperCase()}${stage.slice(1)} selected. Step through the stages to follow chromosome movement during mitosis.`, score: 100 }
+  }
+
+  throw new ApiError(400, 'This experiment does not have a runnable simulation yet')
+}
+
+router.get('/:subject/:id/progress', authMiddleware, async (req, res, next) => {
+  try {
+    const subject = req.params.subject.toLowerCase()
+    if (!findExperiment(subject, req.params.id)) throw new ApiError(404, 'Experiment not found')
+    const progress = await LabProgress.findOne({ user: req.user._id, subject, experimentId: req.params.id }).lean()
+    res.json({ success: true, data: progress })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/:subject/:id/progress', authMiddleware, async (req, res, next) => {
+  try {
+    const subject = req.params.subject.toLowerCase()
+    if (!findExperiment(subject, req.params.id)) throw new ApiError(404, 'Experiment not found')
+    const state = cleanState(req.body?.state)
+    const completedSteps = Array.isArray(req.body?.completedSteps)
+      ? [...new Set(req.body.completedSteps.filter(step => typeof step === 'string').map(step => step.slice(0, 80)))].slice(0, 50)
+      : []
+    const progress = await LabProgress.findOneAndUpdate(
+      { user: req.user._id, subject, experimentId: req.params.id },
+      {
+        $set: {
+          state,
+          completedSteps,
+          status: 'in-progress',
+          results: null,
+          score: null,
+          completedAt: null,
+          lastSavedAt: new Date(),
+        },
+      },
+      { new: true, upsert: true, runValidators: true }
+    )
+    res.json({ success: true, message: 'Progress saved', data: progress })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/:subject/:id/submit', authMiddleware, async (req, res, next) => {
+  try {
+    const subject = req.params.subject.toLowerCase()
+    const result = calculateResult(subject, req.params.id, req.body?.inputs)
+    const completedAt = new Date()
+    const progress = await LabProgress.findOneAndUpdate(
+      { user: req.user._id, subject, experimentId: req.params.id },
+      {
+        $set: {
+          status: 'completed',
+          state: result.inputs,
+          results: result,
+          score: result.score,
+          lastSavedAt: completedAt,
+          completedAt,
+        },
+        $inc: { attempts: 1 },
+      },
+      { new: true, upsert: true, runValidators: true }
+    )
+    res.json({ success: true, data: { ...result, experimentId: req.params.id, subject, attempts: progress.attempts, completedAt } })
+  } catch (error) {
+    next(error)
+  }
 })
 
 export default router

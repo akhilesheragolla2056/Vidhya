@@ -1,31 +1,40 @@
 import { useEffect, useCallback, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { io } from 'socket.io-client'
+import { API_BASE_URL } from '../services/api'
 import {
-  setSocket,
   setConnected,
+  joinRoom,
+  leaveRoom,
+  setCurrentUserId,
   setParticipants,
+  setMessages,
   addParticipant,
   removeParticipant,
   addMessage,
   updateWhiteboard,
   startPoll,
   endPoll,
+  setHandRaised,
+  setRoomEnded,
 } from '../store/slices/classroomSlice'
 
-const SOCKET_URL = import.meta.env.PROD
-  ? (import.meta.env.VITE_SOCKET_URL || 'https://lumina-api-production-1fb3.up.railway.app')
-  : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000')
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (
+  import.meta.env.PROD
+    ? new URL(API_BASE_URL, window.location.origin).origin
+    : 'http://localhost:5000'
+)
 
 export function useSocket(roomId) {
   const dispatch = useDispatch()
   const socketRef = useRef(null)
-  const { isConnected, currentRoom } = useSelector((state) => state.classroom)
+  const { isConnected } = useSelector((state) => state.classroom)
   const user = useSelector((state) => state.user.currentUser)
+  const userId = user?._id || user?.id
 
   // Connect to socket
   useEffect(() => {
-    if (!roomId || !user) return
+    if (!roomId || !userId) return
 
     const socket = io(SOCKET_URL, {
       auth: {
@@ -35,14 +44,25 @@ export function useSocket(roomId) {
     })
 
     socketRef.current = socket
-    dispatch(setSocket(socket))
+    dispatch(joinRoom(roomId))
+    dispatch(setCurrentUserId(userId))
+    dispatch(setConnected(false))
 
     socket.on('connect', () => {
-      dispatch(setConnected(true))
-      socket.emit('join-room', { roomId, user })
+      socket.emit('join-room', { roomId }, response => {
+        if (!response?.success) {
+          socket.disconnect()
+          return
+        }
+        dispatch(setConnected(true))
+      })
     })
 
     socket.on('disconnect', () => {
+      dispatch(setConnected(false))
+    })
+
+    socket.on('connect_error', () => {
       dispatch(setConnected(false))
     })
 
@@ -62,6 +82,10 @@ export function useSocket(roomId) {
       dispatch(addMessage(message))
     })
 
+    socket.on('chat-history', history => {
+      dispatch(setMessages(Array.isArray(history) ? history : []))
+    })
+
     socket.on('whiteboard-update', (state) => {
       dispatch(updateWhiteboard(state))
     })
@@ -74,46 +98,63 @@ export function useSocket(roomId) {
       dispatch(endPoll())
     })
 
+    socket.on('hand-raised', ({ userId: raisedUserId, isRaised }) => {
+      dispatch(setHandRaised({ userId: raisedUserId, isRaised }))
+    })
+
+    socket.on('classroom-ended', () => {
+      dispatch(setRoomEnded(true))
+    })
+
     return () => {
       socket.emit('leave-room', { roomId })
       socket.disconnect()
-      dispatch(setSocket(null))
       dispatch(setConnected(false))
+      dispatch(leaveRoom())
     }
-  }, [roomId, user, dispatch])
+  }, [roomId, userId, dispatch])
 
   // Send message
   const sendMessage = useCallback((content, type = 'text') => {
     if (socketRef.current && isConnected) {
       socketRef.current.emit('send-message', {
-        roomId: currentRoom,
+        roomId,
         content,
         type,
-        sender: user,
       })
     }
-  }, [isConnected, currentRoom, user])
+  }, [isConnected, roomId])
 
   // Raise/lower hand
   const toggleHand = useCallback((isRaised) => {
     if (socketRef.current && isConnected) {
       socketRef.current.emit('hand-raise', {
-        roomId: currentRoom,
-        userId: user?.id,
+        roomId,
         isRaised,
       })
     }
-  }, [isConnected, currentRoom, user])
+  }, [isConnected, roomId])
 
   // Update whiteboard
   const sendWhiteboardUpdate = useCallback((state) => {
     if (socketRef.current && isConnected) {
       socketRef.current.emit('whiteboard-draw', {
-        roomId: currentRoom,
+        roomId,
         state,
       })
     }
-  }, [isConnected, currentRoom])
+  }, [isConnected, roomId])
+
+  const announceRoomEnded = useCallback(onComplete => {
+    const socket = socketRef.current
+    if (!socket?.connected) {
+      onComplete?.(false)
+      return
+    }
+    socket.timeout(1500).emit('announce-classroom-ended', { roomId }, (error, response) => {
+      onComplete?.(!error && Boolean(response?.success))
+    })
+  }, [roomId])
 
   // Start screen share
   const startScreenShare = useCallback(async () => {
@@ -134,6 +175,7 @@ export function useSocket(roomId) {
     sendMessage,
     toggleHand,
     sendWhiteboardUpdate,
+    announceRoomEnded,
     startScreenShare,
     socket: socketRef.current,
   }

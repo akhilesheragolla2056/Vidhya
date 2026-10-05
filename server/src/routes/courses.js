@@ -11,15 +11,19 @@ const router = express.Router()
 // @access  Public
 router.get('/', optionalAuth, async (req, res, next) => {
   try {
-    const { 
-      category, 
-      level, 
-      search, 
+    const {
+      category,
+      level,
+      search,
       isFree,
-      page = 1, 
+      page = 1,
       limit = 12,
-      sort = '-createdAt'
+      sort = '-createdAt',
     } = req.query
+    const pageNumber = Math.max(1, Number.parseInt(page, 10) || 1)
+    const limitNumber = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 12))
+    const allowedSorts = new Set(['-createdAt', 'createdAt', '-stats.rating', 'stats.rating', 'title', '-title'])
+    const sortBy = allowedSorts.has(sort) ? sort : '-createdAt'
 
     const query = { isPublished: true }
 
@@ -32,10 +36,12 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
     const courses = await Course.find(query)
       .populate('instructor', 'name avatar')
-      .select('-modules.lessons.content')
-      .sort(sort)
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
+      .select(
+        '-modules.lessons.content -modules.lessons.quiz.questions.correctAnswer -modules.lessons.quiz.questions.explanation'
+      )
+      .sort(sortBy)
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber)
 
     const total = await Course.countDocuments(query)
 
@@ -43,10 +49,10 @@ router.get('/', optionalAuth, async (req, res, next) => {
       success: true,
       data: courses,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNumber,
+        limit: limitNumber,
         total,
-        pages: Math.ceil(total / limit),
+        pages: Math.ceil(total / limitNumber),
       },
     })
   } catch (error) {
@@ -156,10 +162,32 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
       }
     }
 
+    const courseData = course.toObject()
+    if (!isEnrolled) {
+      courseData.modules = courseData.modules.map(module => ({
+        ...module,
+        lessons: module.lessons.map(lesson => ({
+          ...lesson,
+          quiz: lesson.quiz
+            ? {
+                ...lesson.quiz,
+                questions: lesson.quiz.questions.map(question => ({
+                  _id: question._id,
+                  question: question.question,
+                  type: question.type,
+                  options: question.options,
+                  points: question.points,
+                })),
+              }
+            : lesson.quiz,
+        })),
+      }))
+    }
+
     res.json({
       success: true,
       data: {
-        ...course.toObject(),
+        ...courseData,
         isEnrolled,
         userProgress,
       },

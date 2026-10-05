@@ -6,14 +6,6 @@ export const useOfflineContent = () => {
   const [downloading, setDownloading] = useState({})
   const [isSupported, setIsSupported] = useState(false)
 
-  useEffect(() => {
-    // Check if Cache API is supported
-    setIsSupported('caches' in window)
-    
-    // Load list of downloaded courses
-    loadDownloadedCourses()
-  }, [])
-
   const loadDownloadedCourses = useCallback(async () => {
     if (!('caches' in window)) return
 
@@ -34,6 +26,11 @@ export const useOfflineContent = () => {
       console.error('Error loading downloaded courses:', error)
     }
   }, [])
+
+  useEffect(() => {
+    setIsSupported('caches' in window)
+    loadDownloadedCourses()
+  }, [loadDownloadedCourses])
 
   const downloadCourse = useCallback(async (courseId) => {
     if (!('caches' in window)) {

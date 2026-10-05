@@ -6,21 +6,12 @@ export function ProtectedRoute({ children }) {
   const location = useLocation()
   const { isAuthenticated, currentUser, isLoading } = useSelector(state => state.user)
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem('token')
-  const isHydrating = hasToken && (!isAuthenticated || !currentUser)
-
-  console.log('ProtectedRoute check:', {
-    hasToken,
-    isAuthenticated,
-    currentUser: currentUser ? 'exists' : 'null',
-    isLoading,
-    isHydrating,
-  })
 
   if (!isAuthenticated && !hasToken) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  if (isHydrating || isLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -28,8 +19,8 @@ export function ProtectedRoute({ children }) {
     )
   }
 
-  if (!currentUser && isAuthenticated) {
-    return <Navigate to="/login" replace />
+  if (!isAuthenticated || !currentUser) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
   return children

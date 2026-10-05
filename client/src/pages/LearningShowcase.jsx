@@ -5,13 +5,12 @@ import {
   Video,
   FileText,
   HelpCircle,
-  CheckCircle2,
   ArrowRight,
-  Star,
   Trophy,
   Target,
   Play,
 } from 'lucide-react'
+import { coursesData } from '../data/coursesData'
 
 /**
  * Showcase Component for New Learning Platform
@@ -45,36 +44,7 @@ export default function LearningShowcase() {
     },
   ]
 
-  const sampleCourses = [
-    {
-      id: 'ml-101',
-      title: 'Machine Learning Fundamentals',
-      category: 'Academic Education',
-      difficulty: 'Intermediate',
-      lessons: 24,
-    },
-    {
-      id: 'yoga-beginners',
-      title: 'Yoga for Absolute Beginners',
-      category: 'Sports & Fitness',
-      difficulty: 'Beginner',
-      lessons: 12,
-    },
-    {
-      id: 'web-dev-bootcamp',
-      title: 'Complete Web Development Bootcamp',
-      category: 'Skill-based Courses',
-      difficulty: 'Beginner',
-      lessons: 36,
-    },
-    {
-      id: 'upsc-prep',
-      title: 'UPSC Civil Services Preparation',
-      category: 'Competitive Exams',
-      difficulty: 'Advanced',
-      lessons: 48,
-    },
-  ]
+  const featuredCourses = coursesData.slice(0, 4)
 
   return (
     <div className="min-h-screen bg-surface-light">
@@ -136,7 +106,7 @@ export default function LearningShowcase() {
         </div>
       </div>
 
-      {/* Sample Courses */}
+      {/* Featured Courses */}
       <div className="bg-white py-16">
         <div className="container-custom">
           <div className="text-center mb-12">
@@ -144,12 +114,12 @@ export default function LearningShowcase() {
               Featured Courses
             </h2>
             <p className="text-lg text-text-secondary max-w-2xl mx-auto">
-              Explore courses across multiple categories
+              Explore {coursesData.length} guided courses across multiple categories
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {sampleCourses.map((course, index) => (
+            {featuredCourses.map((course, index) => (
               <motion.div
                 key={course.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -182,7 +152,9 @@ export default function LearningShowcase() {
                   <p className="text-sm text-text-secondary mb-4">{course.category}</p>
 
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                    <span className="text-xs text-text-secondary">{course.lessons} lessons</span>
+                    <span className="text-xs text-text-secondary">
+                      {course.playlist.length} lessons · {course.duration}
+                    </span>
                     <ArrowRight
                       size={16}
                       className="text-primary group-hover:translate-x-1 transition-transform"
@@ -268,7 +240,7 @@ export default function LearningShowcase() {
           <Trophy size={64} className="mx-auto mb-6 text-yellow-300" />
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Start Learning Today</h2>
           <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-            Join thousands of learners mastering new skills with Vidhya
+            Browse the current course library and choose a topic to start learning.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
             <Link
@@ -282,7 +254,7 @@ export default function LearningShowcase() {
               to="/course/ml-101"
               className="inline-flex items-center gap-2 px-8 py-4 bg-white/20 hover:bg-white/30 text-white rounded-xl font-bold text-lg backdrop-blur-sm transition-colors"
             >
-              Try Sample Course
+              Start with a course
               <Play size={20} />
             </Link>
           </div>

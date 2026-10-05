@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useQuery } from '@tanstack/react-query'
 import { 
   ArrowRight, 
   ChevronDown,
@@ -12,32 +13,26 @@ import {
   Award,
   Zap,
   CheckCircle2,
-  Star
 } from 'lucide-react'
-
-const stats = [
-  { value: '42', suffix: '+', label: 'Practice', sublabel: 'Tools' },
-  { value: '1K', suffix: '+', label: 'Demo Sessions', sublabel: 'Created' },
-  { value: '5', suffix: '+', label: 'Months of', sublabel: 'Development' },
-  { value: '3', suffix: '', label: 'Built by', sublabel: 'Passionate Devs' },
-]
+import { coursesData, getAllCategories } from '../data/coursesData'
+import { coursesAPI } from '../services/api'
 
 const features = [
   {
-    title: 'Effective, bite-sized lessons',
-    description: 'Our AI tutor crafts personalized learning paths to help you master new skills efficiently.',
+    title: 'Focused lessons',
+    description: 'Work through concise course guides with a clear topic and practical knowledge checks.',
     bgColor: 'bg-gradient-to-br from-cyan-400 to-cyan-500',
     icon: Zap,
   },
   {
-    title: 'Inspired learning, affordable pricing',
-    description: 'Personal tutoring is not a luxury anymore. Start your journey for as little as the price of a cup of coffee.',
+    title: 'Study materials together',
+    description: 'Use lesson notes and short quizzes to review new ideas and check your understanding.',
     bgColor: 'bg-gradient-to-br from-pink-400 to-pink-500',
     icon: Sparkles,
   },
   {
-    title: 'Real-life skills for success',
-    description: 'Learn practical skills that translate directly to career advancement and personal growth.',
+    title: 'Learn at your pace',
+    description: 'Choose a subject, work through the lessons, and return to your progress when you are ready.',
     bgColor: 'bg-gradient-to-br from-orange-400 to-orange-500',
     icon: Target,
   },
@@ -46,8 +41,8 @@ const features = [
 const capabilities = [
   {
     icon: Brain,
-    title: 'AI-Powered Learning',
-    description: 'Adaptive algorithms that understand your learning style and pace.'
+    title: 'AI study help',
+    description: 'Ask the AI tutor for explanations and hints while you work through a topic.'
   },
   {
     icon: BookOpen,
@@ -56,46 +51,14 @@ const capabilities = [
   },
   {
     icon: Users,
-    title: 'Expert Support',
-    description: 'Get help when you need it from our AI assistants.'
+    title: 'Questions welcome',
+    description: 'Use the study assistant to explore a question in your own words.'
   },
   {
     icon: Award,
     title: 'Track Progress',
     description: 'Visualize your growth with detailed analytics and achievements.'
   },
-]
-
-const testimonials = [
-  {
-    name: 'Sarah M.',
-    role: 'Computer Science Student',
-    content: 'Vidhya helped me understand complex algorithms in a way my textbooks never could. The AI explanations are incredibly clear!',
-    rating: 5,
-  },
-  {
-    name: 'James K.',
-    role: 'Working Professional',
-    content: 'I use Vidhya during my commute. The bite-sized lessons are perfect for busy schedules.',
-    rating: 5,
-  },
-  {
-    name: 'Priya R.',
-    role: 'High School Teacher',
-    content: 'I recommend Vidhya to all my students. It adapts to each learner\'s needs beautifully.',
-    rating: 5,
-  },
-]
-
-const faqs = [
-  { question: 'What is Vidhya AI Tutor?', answer: 'Vidhya is an AI-powered learning platform that creates personalized courses tailored to your learning style and goals.' },
-  { question: 'How does Vidhya personalize the learning?', answer: 'Our AI analyzes your learning patterns, preferences, and progress to create custom learning paths that adapt in real-time.' },
-  { question: 'Which subjects does Vidhya cover?', answer: 'Vidhya covers a wide range of subjects including programming, data science, mathematics, languages, business, and more.' },
-  { question: 'Is Vidhya for all ages?', answer: 'Yes, Vidhya is designed for learners of all ages, from K-12 students to working professionals.' },
-  { question: 'How do I sign up for Vidhya?', answer: 'Simply click the Get Started button and create your free account to begin your learning journey.' },
-  { question: 'What are the subscription plans of Vidhya?', answer: 'We offer flexible plans including a free tier, monthly subscription, and annual plans with significant savings.' },
-  { question: 'Can I cancel my Vidhya subscription anytime?', answer: 'Yes, you can cancel your subscription at any time with no questions asked.' },
-  { question: 'Do you offer plans for schools or universities?', answer: 'Not yet. This is currently an early-stage prototype. Institution plans may be added in the future.' },
 ]
 
 function HeroBackground() {
@@ -232,36 +195,51 @@ function CapabilityCard({ capability, index }) {
   )
 }
 
-function TestimonialCard({ testimonial, index }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      whileInView={{ opacity: 1, scale: 1 }}
-      viewport={{ once: true }}
-      transition={{ delay: index * 0.1 }}
-      className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100"
-    >
-      <div className="flex gap-1 mb-4">
-        {[...Array(testimonial.rating)].map((_, i) => (
-          <Star key={i} size={18} className="fill-yellow-400 text-yellow-400" />
-        ))}
-      </div>
-      <p className="text-gray-700 mb-4 leading-relaxed">"{testimonial.content}"</p>
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-dark rounded-full flex items-center justify-center text-white font-bold">
-          {testimonial.name[0]}
-        </div>
-        <div>
-          <p className="font-semibold text-gray-900">{testimonial.name}</p>
-          <p className="text-sm text-gray-500">{testimonial.role}</p>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
 export default function Landing() {
   const [openFAQ, setOpenFAQ] = useState(null)
+  const { data: publishedCourses = [] } = useQuery({
+    queryKey: ['published-courses'],
+    queryFn: async () => {
+      const response = await coursesAPI.getAll({ limit: 100 })
+      return Array.isArray(response.data?.data) ? response.data.data : []
+    },
+    retry: 1,
+  })
+  const catalogCategories = Array.from(
+    new Set([...getAllCategories(), ...publishedCourses.map(course => course.category).filter(Boolean)])
+  )
+  const totalCourseCount = coursesData.length + publishedCourses.length
+  const totalLessonCount = coursesData.reduce((sum, course) => sum + course.playlist.length, 0) +
+    publishedCourses.reduce((sum, course) => sum + (course.modules || []).reduce((moduleSum, module) => moduleSum + (module.lessons?.length || 0), 0), 0)
+  const stats = [
+    { value: totalCourseCount, suffix: '', label: 'Guided courses', sublabel: 'Ready to explore' },
+    { value: totalLessonCount, suffix: '', label: 'Lesson guides', sublabel: 'Across the course library' },
+    { value: catalogCategories.length, suffix: '', label: 'Subject areas', sublabel: 'Across the library' },
+    { value: 'Self-paced', suffix: '', label: 'Flexible study', sublabel: 'Learn on your schedule' },
+  ]
+  const categories = catalogCategories.map(category => ({
+    name: category,
+    courses: coursesData.filter(course => course.category === category).length +
+      publishedCourses.filter(course => course.category === category).length,
+  }))
+  const faqs = [
+    {
+      question: 'What is Vidhya?',
+      answer: 'Vidhya is a learning platform with guided courses, lesson notes, short quizzes, progress tracking, and study tools.',
+    },
+    {
+      question: 'Which subjects can I study?',
+      answer: `The course library covers ${catalogCategories.join(', ')}.`,
+    },
+    {
+      question: 'Do I need an account?',
+      answer: 'You can browse the course library without an account. Sign in to use your dashboard, save learning progress, and join a classroom.',
+    },
+    {
+      question: 'Does Vidhya charge for a subscription?',
+      answer: 'The app currently has no subscription or payment plans.',
+    },
+  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white overflow-hidden">
@@ -283,7 +261,7 @@ export default function Landing() {
               className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium mb-6"
             >
               <Sparkles size={16} />
-              AI-Powered Learning Platform
+              A library for independent learners
             </motion.div>
             
             <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold text-gray-900 mb-4 leading-tight">
@@ -296,7 +274,7 @@ export default function Landing() {
               For Lifelong Learners
             </h2>
             <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto mb-10">
-              Create a custom learning pathway powered by AI to help you achieve more in school, work, and life.
+              Browse practical courses, work through clear lesson guides, and get help when you need it.
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -319,15 +297,15 @@ export default function Landing() {
             >
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={18} className="text-green-500" />
-                <span className="text-sm">No credit card required</span>
+                <span className="text-sm">Browse courses before signing in</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={18} className="text-green-500" />
-                <span className="text-sm">Free forever plan</span>
+                <span className="text-sm">No payment details requested</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={18} className="text-green-500" />
-                <span className="text-sm">Cancel anytime</span>
+                <span className="text-sm">Learn at your own pace</span>
               </div>
             </motion.div>
           </motion.div>
@@ -419,7 +397,7 @@ export default function Landing() {
         </div>
       </section>
       
-      {/* Testimonials Section */}
+      {/* Course subjects */}
       <section className="py-20 px-4 bg-gradient-to-b from-slate-50 to-white">
         <div className="container-custom">
           <motion.div
@@ -429,16 +407,33 @@ export default function Landing() {
             className="text-center mb-12"
           >
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-              Loved by <span className="text-primary">Learners</span>
+              Explore by <span className="text-primary">Subject</span>
             </h2>
             <p className="text-xl text-gray-600">
-              See what our community has to say
+              Find a starting point in the course library.
             </p>
           </motion.div>
           
-          <div className="grid md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial, index) => (
-              <TestimonialCard key={index} testimonial={testimonial} index={index} />
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {categories.map(category => (
+              <Link
+                key={category.name}
+                to={`/courses?category=${encodeURIComponent(category.name)}`}
+                className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <BookOpen size={23} />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 group-hover:text-primary">{category.name}</h3>
+                    <p className="text-sm text-gray-500">
+                      {category.courses} {category.courses === 1 ? 'course' : 'courses'}
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight size={18} className="text-gray-400 transition group-hover:translate-x-1 group-hover:text-primary" />
+              </Link>
             ))}
           </div>
         </div>
@@ -487,7 +482,7 @@ export default function Landing() {
                 Ready to Transform Your Learning?
               </h2>
               <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-                Join thousands of learners already using Vidhya to achieve their goals
+                Create an account to save your learning progress and use your dashboard.
               </p>
               <Link to="/signup" className="inline-flex items-center gap-2 bg-white text-gray-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors shadow-lg">
                 Get Started for Free

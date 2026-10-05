@@ -3,7 +3,6 @@ import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  MessageSquare, 
   Send, 
   Sparkles,
   Bot,
@@ -13,7 +12,6 @@ import {
   BookOpen,
   Lightbulb,
   HelpCircle,
-  RefreshCw,
   XCircle
 } from 'lucide-react'
 import { aiAPI } from '../services/api'

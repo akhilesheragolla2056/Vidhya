@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Mail,
   Lock,
@@ -18,12 +18,15 @@ import Logo from '../components/ui/Logo'
 import { startOAuth } from '../services/api'
 
 function Signup() {
+  const [searchParams] = useSearchParams()
+  const requestedRole = searchParams.get('role')
+  const initialRole = ['student', 'parent', 'teacher'].includes(requestedRole) ? requestedRole : 'student'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student',
+    role: initialRole,
     agreeToTerms: false,
   })
   const [showPassword, setShowPassword] = useState(false)
@@ -31,10 +34,15 @@ function Signup() {
   const [validationError, setValidationError] = useState('')
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isLoading, error } = useSelector(state => state.user)
 
   const handleSocialLogin = provider => {
-    startOAuth(provider)
+    const returnPath = location.state?.from
+    if (returnPath) sessionStorage.setItem('postAuthRedirect', returnPath)
+    else sessionStorage.removeItem('postAuthRedirect')
+    sessionStorage.setItem('expectedAuthRole', formData.role)
+    startOAuth(provider, undefined, formData.role)
   }
 
   const handleChange = e => {
@@ -74,7 +82,7 @@ function Signup() {
     )
 
     if (signup.fulfilled.match(result)) {
-      navigate('/dashboard')
+      navigate(location.state?.from || '/dashboard', { replace: true })
     }
   }
 

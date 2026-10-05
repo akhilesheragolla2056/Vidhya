@@ -22,12 +22,12 @@ const Landing = lazy(() => import('./pages/Landing'))
 const LearningShowcase = lazy(() => import('./pages/LearningShowcase'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Classroom = lazy(() => import('./pages/Classroom'))
+const Classrooms = lazy(() => import('./pages/Classrooms'))
 const Lab = lazy(() => import('./pages/Lab'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Login = lazy(() => import('./pages/Login'))
 const Signup = lazy(() => import('./pages/Signup'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
-const Courses = lazy(() => import('./pages/Courses'))
 const CoursesNew = lazy(() => import('./pages/CoursesNew'))
 const CourseDetail = lazy(() => import('./pages/CourseDetail'))
 const CourseDetailNew = lazy(() => import('./pages/CourseDetailNew'))
@@ -41,6 +41,7 @@ const TestTaker = lazy(() => import('./pages/TestTaker'))
 const TestResults = lazy(() => import('./pages/TestResults'))
 const ScienceLab = lazy(() => import('./pages/ScienceLab'))
 const Certificates = lazy(() => import('./pages/Certificates'))
+const CertificateVerification = lazy(() => import('./pages/CertificateVerification'))
 const MathSprint = lazy(() => import('./pages/MathSprint'))
 const ScienceQuest = lazy(() => import('./pages/ScienceQuest'))
 const Games = lazy(() => import('./pages/Games'))
@@ -54,7 +55,7 @@ function App() {
   const [isHydrating, setIsHydrating] = useState(true)
 
   // Hide footer on auth pages
-  const hideFooter = ['/login', '/signup'].includes(location.pathname)
+  const hideFooter = location.pathname.startsWith('/login') || location.pathname === '/signup'
 
   // Apply accessibility settings to body
   useEffect(() => {
@@ -86,7 +87,7 @@ function App() {
 
       {connectionType === 'slow' && isOnline && (
         <div className="fixed top-0 left-0 right-0 bg-amber-600 text-white text-center py-2.5 z-50 font-medium text-sm">
-          Low bandwidth detected. Loading lite version.
+          Your connection is slow. Course images may take longer to load.
         </div>
       )}
 
@@ -138,11 +139,7 @@ function App() {
             <Route path="/courses-new" element={<CoursesNew />} />
             <Route
               path="/courses/:id"
-              element={
-                <ProtectedRoute>
-                  <CourseDetail />
-                </ProtectedRoute>
-              }
+              element={<CourseDetail />}
             />
             <Route path="/course/:id" element={<CourseDetailNew />} />
             <Route path="/mock-tests" element={<MockTests />} />
@@ -172,6 +169,10 @@ function App() {
               }
             />
             <Route
+              path="/certificates/:certificateId"
+              element={<CertificateVerification />}
+            />
+            <Route
               path="/certificates"
               element={
                 <ProtectedRoute>
@@ -188,6 +189,14 @@ function App() {
                 <ProtectedRoute>
                   <Games />
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/login/:role"
+              element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
               }
             />
             <Route
@@ -211,6 +220,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <StudyChat />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/classrooms"
+              element={
+                <ProtectedRoute>
+                  <Classrooms />
                 </ProtectedRoute>
               }
             />

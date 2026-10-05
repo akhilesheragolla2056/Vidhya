@@ -6,7 +6,7 @@ const ensureApiSuffix = url => {
   return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
 }
 
-const DEFAULT_PROD_API_URL = 'https://lumina-api-production-1fb3.up.railway.app/api'
+const DEFAULT_PROD_API_URL = 'https://vidhya-production.up.railway.app/api'
 
 // In development, use relative path to go through Vite proxy
 // In production, use the full API URL
@@ -16,15 +16,15 @@ const API_URL = import.meta.env.PROD
 
 export const API_BASE_URL = API_URL
 
-export const buildOAuthUrl = (provider, redirectUri) => {
+export const buildOAuthUrl = (provider, redirectUri, role) => {
   const base = API_URL.replace(/\/$/, '')
   const target = redirectUri || `${window.location.origin}/auth/callback`
-  const query = new URLSearchParams({ redirect: target }).toString()
+  const query = new URLSearchParams({ redirect: target, ...(role ? { role } : {}) }).toString()
   return `${base}/auth/${provider}?${query}`
 }
 
-export const startOAuth = (provider, redirectUri) => {
-  window.location.href = buildOAuthUrl(provider, redirectUri)
+export const startOAuth = (provider, redirectUri, role) => {
+  window.location.href = buildOAuthUrl(provider, redirectUri, role)
 }
 
 const api = axios.create({
@@ -56,12 +56,16 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Token expired or invalid
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      // Let the OAuth callback handle its own profile request and show the
+      // server error; a hard navigation here loses that message and can race
+      // with callback cleanup.
+      if (window.location.pathname !== '/auth/callback') {
+        window.location.href = '/login'
+      }
     }
 
     // Network error - app is offline
     if (!error.response) {
-      console.log('Network error - working offline')
       // Could trigger offline mode here
     }
 
@@ -111,8 +115,10 @@ export const aiAPI = {
 }
 
 export const classroomAPI = {
+  getMine: () => api.get('/classrooms'),
   create: data => api.post('/classrooms', data),
   join: code => api.post('/classrooms/join', { code }),
+  joinById: id => api.post(`/classrooms/${id}/join`),
   getSession: id => api.get(`/classrooms/${id}`),
   endSession: id => api.post(`/classrooms/${id}/end`),
 }
@@ -120,6 +126,7 @@ export const classroomAPI = {
 export const labAPI = {
   getExperiments: subject => api.get(subject ? `/labs/${subject}` : '/labs'),
   getExperiment: (subject, id) => api.get(`/labs/${subject}/${id}`),
+  getProgress: (subject, id) => api.get(`/labs/${subject}/${id}/progress`),
   saveProgress: (subject, id, payload) => api.post(`/labs/${subject}/${id}/progress`, payload),
   submitResults: (subject, id, payload) => api.post(`/labs/${subject}/${id}/submit`, payload),
 }
