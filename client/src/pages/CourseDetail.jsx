@@ -21,6 +21,7 @@ import {
 import api, { coursesAPI, lessonsAPI } from '../services/api'
 import YouTubeTracker from '../components/video/YouTubeTracker'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import { notifyLearningProgressUpdated } from '../utils/learningProgressEvents'
 
 // Helper to convert YouTube URLs to embed URLs
 function getEmbedUrl(lesson) {
@@ -103,6 +104,7 @@ export default function CourseDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['course', id] })
       queryClient.invalidateQueries({ queryKey: ['courseProgress', id] })
+      notifyLearningProgressUpdated({ courseId: id, activity: 'course-enrolled' })
     },
   })
 
@@ -112,6 +114,7 @@ export default function CourseDetail() {
       queryClient.invalidateQueries({ queryKey: ['courseProgress', id] })
       queryClient.invalidateQueries({ queryKey: ['course', id] })
       queryClient.invalidateQueries({ queryKey: ['learningProgress', currentUserId] })
+      notifyLearningProgressUpdated({ courseId: id, activity: 'lesson-completed' })
     },
   })
 
@@ -119,6 +122,7 @@ export default function CourseDetail() {
     mutationFn: () => api.post('/progress/generate', { courseId: id }),
     onSuccess: response => {
       const certificate = response.data?.data
+      notifyLearningProgressUpdated({ courseId: id, activity: 'certificate-earned' })
       if (certificate?._id) navigate(`/certificates/${certificate._id}`)
     },
   })

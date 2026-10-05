@@ -1,7 +1,11 @@
+import { useEffect } from 'react'
 import { useSelector } from 'react-redux'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { coursesAPI } from '../services/api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import api, { coursesAPI } from '../services/api'
+import { coursesData } from '../data/coursesData'
+import { getAllProgress, PROGRESS_STORAGE_KEY } from '../utils/progressTracker'
+import { LEARNING_PROGRESS_UPDATED_EVENT } from '../utils/learningProgressEvents'
 import {
   BookOpen,
   FlaskConical,
@@ -16,10 +20,41 @@ import {
   TrendingUp,
 } from 'lucide-react'
 
+const LIVE_REFRESH_INTERVAL = 20_000
+
+function readLocalCourseProgress() {
+  const savedProgress = getAllProgress()
+
+  return coursesData.map(course => {
+    const progress = savedProgress[course.id] || {}
+    const mcqScores = progress.mcqScores || {}
+    const lessonsCompleted = course.playlist.filter(
+      lesson => Number(mcqScores[lesson.id]?.percentage) >= 60
+    ).length
+    const totalLessons = course.playlist.length
+    const percentage = totalLessons ? Math.round((lessonsCompleted / totalLessons) * 100) : 0
+    const activeSeconds = Math.max(0, Number(progress.activeSeconds) || 0)
+    const started = Boolean(
+      progress.startedAt || progress.lastAccessed || activeSeconds || lessonsCompleted
+    )
+
+    return {
+      ...course,
+      href: `/course/${course.id}`,
+      progress: percentage,
+      lessonsCompleted,
+      totalLessons,
+      activeSeconds,
+      started,
+      certificateEarned: totalLessons > 0 && lessonsCompleted === totalLessons,
+    }
+  })
+}
+
 function CourseCard({ course }) {
   return (
     <Link
-      to={`/courses/${course.id || course._id}`}
+      to={course.href || `/courses/${course.id || course._id}`}
       className="block bg-white border border-gray-200 rounded-lg hover:shadow-md hover:border-primary/30 transition-all overflow-hidden group"
     >
       <div className="h-32 bg-gradient-to-br from-primary/10 to-accent-cyan/10 relative">
@@ -96,6 +131,17 @@ function StatCard({ icon: Icon, value, label, trend }) {
 function Dashboard() {
   const { currentUser } = useSelector(state => state.user)
   const currentUserId = currentUser?._id || currentUser?.id
+  const queryClient = useQueryClient()
+
+  const { data: localCourseProgress = [] } = useQuery({
+    queryKey: ['dashboardLocalCourses', currentUserId],
+    queryFn: readLocalCourseProgress,
+    enabled: !!currentUserId,
+    staleTime: 0,
+    refetchInterval: 5000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+  })
 
   const {
     data: enrolledCourses = [],
@@ -107,8 +153,13 @@ function Dashboard() {
       const res = await coursesAPI.getEnrolled()
       return Array.isArray(res.data?.data) ? res.data.data : []
     },
-    enabled: !!currentUser,
+    enabled: !!currentUserId,
     retry: 1,
+    staleTime: 0,
+    refetchInterval: LIVE_REFRESH_INTERVAL,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
   const { data: recommendations = [] } = useQuery({
@@ -117,15 +168,19 @@ function Dashboard() {
       const response = await coursesAPI.getRecommendations()
       return Array.isArray(response.data?.data) ? response.data.data : []
     },
-    enabled: !!currentUser,
+    enabled: !!currentUserId,
     retry: 1,
+    staleTime: 0,
+    refetchInterval: LIVE_REFRESH_INTERVAL,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
   const { data: progressSummary = {} } = useQuery({
     queryKey: ['learningProgress', currentUserId],
     queryFn: async () => {
       try {
-        const { default: api } = await import('../services/api')
         const res = await api.get(`/progress/user/${currentUserId}`)
         return { data: res.data?.data || null, summary: res.data?.summary || {} }
       } catch {
@@ -134,9 +189,61 @@ function Dashboard() {
     },
     enabled: !!currentUserId,
     retry: 1,
+    staleTime: 0,
+    refetchInterval: LIVE_REFRESH_INTERVAL,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
-  const displayCourses = Array.isArray(enrolledCourses) ? enrolledCourses : []
+  const { data: serverCertificates = [] } = useQuery({
+    queryKey: ['dashboardCertificates', currentUserId],
+    queryFn: async () => {
+      const response = await api.get('/progress/certificates/user')
+      return Array.isArray(response.data?.data) ? response.data.data : []
+    },
+    enabled: !!currentUserId,
+    retry: 1,
+    staleTime: 0,
+    refetchInterval: LIVE_REFRESH_INTERVAL,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  })
+
+  useEffect(() => {
+    const refreshDashboard = event => {
+      void queryClient.invalidateQueries({ queryKey: ['dashboardLocalCourses', currentUserId] })
+      if (event?.detail?.activity === 'learning-time') return
+      void queryClient.invalidateQueries({ queryKey: ['enrolledCourses', currentUserId] })
+      void queryClient.invalidateQueries({ queryKey: ['courseRecommendations', currentUserId] })
+      void queryClient.invalidateQueries({ queryKey: ['learningProgress', currentUserId] })
+      void queryClient.invalidateQueries({ queryKey: ['dashboardCertificates', currentUserId] })
+    }
+    const refreshForOtherTab = event => {
+      if (!event.key || event.key === PROGRESS_STORAGE_KEY) refreshDashboard()
+    }
+
+    window.addEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refreshDashboard)
+    window.addEventListener('storage', refreshForOtherTab)
+    return () => {
+      window.removeEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refreshDashboard)
+      window.removeEventListener('storage', refreshForOtherTab)
+    }
+  }, [currentUserId, queryClient])
+
+  const serverCourses = Array.isArray(enrolledCourses)
+    ? enrolledCourses.map(course => {
+        const id = course.id || course._id
+        return { ...course, id, href: `/courses/${id}` }
+      })
+    : []
+  const serverCourseIds = new Set(serverCourses.map(course => String(course.id)))
+  const localStartedCourses = localCourseProgress.filter(course => course.started)
+  const displayCourses = [
+    ...serverCourses,
+    ...localStartedCourses.filter(course => !serverCourseIds.has(String(course.id))),
+  ]
 
   const courseTotals = Array.isArray(displayCourses)
     ? displayCourses.reduce(
@@ -156,8 +263,69 @@ function Dashboard() {
 
   const summary = progressSummary?.summary || {}
   const totalCoursesEnrolled = displayCourses.length
-  const totalLearningHours = summary.totalLearningHours ?? 0
-  const certificatesEarned = summary.certificatesEarned || 0
+  const serverLearningHours = Number(summary.totalLearningHours ?? summary.totalHoursLearned ?? 0)
+  const localLearningSeconds = localCourseProgress.reduce(
+    (total, course) => total + course.activeSeconds,
+    0
+  )
+  const totalLearningSeconds = serverLearningHours * 3600 + localLearningSeconds
+  const learningTimeDisplay = totalLearningSeconds < 60
+    ? `${Math.floor(totalLearningSeconds)}s`
+    : totalLearningSeconds < 3600
+      ? `${Math.floor(totalLearningSeconds / 60)}m`
+      : `${(totalLearningSeconds / 3600).toFixed(1)}h`
+  const serverCertificateIds = new Set(
+    serverCertificates
+      .map(certificate => certificate.course?._id || certificate.course)
+      .filter(Boolean)
+      .map(String)
+  )
+  const localCertificateCount = localCourseProgress.filter(
+    course => course.certificateEarned && !serverCertificateIds.has(String(course.id))
+  ).length
+  const certificatesEarned = Math.max(
+    serverCertificateIds.size,
+    Number(summary.certificatesEarned) || 0
+  ) + localCertificateCount
+
+  const displayRecommendations = (() => {
+    const enrolledIds = new Set(displayCourses.map(course => String(course.id || course._id)))
+    localStartedCourses.forEach(course => enrolledIds.add(String(course.id)))
+
+    const categoryCounts = new Map()
+    displayCourses.forEach(course => {
+      if (course.category) {
+        categoryCounts.set(course.category, (categoryCounts.get(course.category) || 0) + 1)
+      }
+    })
+    const interests = new Set(currentUser?.learningProfile?.interests || [])
+    const localRecommendations = coursesData
+      .filter(course => !enrolledIds.has(String(course.id)))
+      .map(course => ({
+        ...course,
+        _id: course.id,
+        href: `/course/${course.id}`,
+        recommendationScore:
+          (categoryCounts.get(course.category) || 0) * 10 +
+          (interests.has(course.category) ? 5 : 0) +
+          (Number(course.rating) || 0),
+      }))
+      .sort((left, right) => right.recommendationScore - left.recommendationScore)
+
+    const serverRecommendations = (recommendations || []).map(course => {
+      const id = course._id || course.id
+      return { ...course, _id: id, href: `/courses/${id}` }
+    })
+    const seen = new Set()
+    return [...serverRecommendations, ...localRecommendations]
+      .filter(course => {
+        const id = String(course._id || course.id)
+        if (!id || enrolledIds.has(id) || seen.has(id)) return false
+        seen.add(id)
+        return true
+      })
+      .slice(0, 6)
+  })()
   const achievements = (currentUser?.progress?.badges || []).map(badge => ({
     title: typeof badge === 'string' ? badge : badge.title,
     desc: typeof badge === 'string' ? 'Achievement earned' : badge.description || 'Achievement earned',
@@ -183,7 +351,7 @@ function Dashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard icon={BookOpen} value={`${avgCompletion}%`} label="Avg. Completion" />
           <StatCard icon={FlaskConical} value={totalCoursesEnrolled} label="Courses Enrolled" />
-          <StatCard icon={Clock} value={`${totalLearningHours}h`} label="Learning Hours" />
+          <StatCard icon={Clock} value={learningTimeDisplay} label="Learning Time" />
           <StatCard icon={Award} value={certificatesEarned} label="Certificates" />
         </div>
 
@@ -247,19 +415,19 @@ function Dashboard() {
             {/* Recommended Section */}
             <section className="bg-white rounded-lg p-6 border border-gray-200">
               <h2 className="text-xl font-bold text-text-primary mb-4">Recommended For You</h2>
-              {recommendations.length === 0 ? (
+              {displayRecommendations.length === 0 ? (
                 <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center">
                   <Target size={40} className="text-gray-300 mx-auto mb-3" />
                   <p className="text-text-secondary text-sm">
-                    Complete some lessons to get personalized recommendations
+                    You have explored all available courses. Check back as new courses are added.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recommendations.map(rec => (
+                  {displayRecommendations.map(rec => (
                     <Link
-                      key={rec._id}
-                      to={`/courses/${rec._id}`}
+                      key={rec._id || rec.id}
+                      to={rec.href || `/courses/${rec._id || rec.id}`}
                       className="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-all hover:border-primary hover:shadow-sm"
                     >
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">

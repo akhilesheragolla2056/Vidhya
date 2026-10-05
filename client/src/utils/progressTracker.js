@@ -1,16 +1,18 @@
+import { notifyLearningProgressUpdated } from './learningProgressEvents'
+
 /**
  * Progress Tracking Utility for Vidhya Learning Platform
  * Manages course progress in localStorage with real-time updates
  */
 
-const STORAGE_KEY = 'vidhya_course_progress'
+export const PROGRESS_STORAGE_KEY = 'vidhya_course_progress'
 
 /**
  * Get all course progress from localStorage
  */
 export function getAllProgress() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY)
+    const data = localStorage.getItem(PROGRESS_STORAGE_KEY)
     return data ? JSON.parse(data) : {}
   } catch (error) {
     console.error('Error reading progress:', error)
@@ -36,7 +38,15 @@ export function getCourseProgress(courseId) {
     startedAt: savedProgress.startedAt || null,
     completedAt: savedProgress.completedAt || null,
     overallProgress: savedProgress.overallProgress || 0,
+    activeSeconds: Math.max(0, Number(savedProgress.activeSeconds) || 0),
   }
+}
+
+function saveProgress(allProgress, courseId, courseProgress, activity) {
+  allProgress[courseId] = courseProgress
+  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
+  if (activity !== 'learning-time') notifyLearningProgressUpdated({ courseId, activity })
+  return courseProgress
 }
 
 const syncLessonCompletion = (courseProgress, lessonId) => {
@@ -74,10 +84,22 @@ export function markVideoWatched(courseId, lessonId, watchPercentage = 100) {
   courseProgress.status = 'in-progress'
 
   // Save updated progress
-  allProgress[courseId] = courseProgress
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress))
+  return saveProgress(allProgress, courseId, courseProgress, 'video-completed')
+}
 
-  return courseProgress
+/** Record active video playback time without counting paused or hidden-tab time. */
+export function recordLearningSeconds(courseId, lessonId, seconds) {
+  const safeSeconds = Math.max(0, Math.min(15, Math.floor(Number(seconds) || 0)))
+  if (!courseId || !lessonId || safeSeconds === 0) return getCourseProgress(courseId)
+
+  const allProgress = getAllProgress()
+  const courseProgress = getCourseProgress(courseId)
+  courseProgress.activeSeconds += safeSeconds
+  if (!courseProgress.startedAt) courseProgress.startedAt = new Date().toISOString()
+  courseProgress.lastAccessed = new Date().toISOString()
+  courseProgress.status = 'in-progress'
+
+  return saveProgress(allProgress, courseId, courseProgress, 'learning-time')
 }
 
 /**
@@ -97,10 +119,7 @@ export function markNotesRead(courseId, lessonId) {
     courseProgress.status = 'in-progress'
   }
 
-  allProgress[courseId] = courseProgress
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress))
-
-  return courseProgress
+  return saveProgress(allProgress, courseId, courseProgress, 'notes-read')
 }
 
 /**
@@ -132,10 +151,7 @@ export function saveMCQResults(courseId, lessonId, score, totalQuestions) {
   }
   courseProgress.status = 'in-progress'
 
-  allProgress[courseId] = courseProgress
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress))
-
-  return courseProgress
+  return saveProgress(allProgress, courseId, courseProgress, 'quiz-submitted')
 }
 
 /**
@@ -172,7 +188,7 @@ export function calculateProgress(courseId, lessonIdsOrCount) {
 
   const allProgress = getAllProgress()
   allProgress[courseId] = courseProgress
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress))
+  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
 
   return percentage
 }
@@ -215,7 +231,8 @@ export function areNotesRead(courseId, lessonId) {
 export function resetCourseProgress(courseId) {
   const allProgress = getAllProgress()
   delete allProgress[courseId]
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress))
+  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
+  notifyLearningProgressUpdated({ courseId, activity: 'progress-reset' })
 }
 
 /**

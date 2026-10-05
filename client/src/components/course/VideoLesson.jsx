@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import PropTypes from 'prop-types'
 import { Play, Pause, Volume2, VolumeX, Maximize, CheckCircle2 } from 'lucide-react'
+import { recordLearningSeconds } from '../../utils/progressTracker'
 
 /**
  * VideoLesson Component
  * YouTube video player with progress tracking and auto-play next
  */
-export default function VideoLesson({ videoUrl, lessonId, courseId: _courseId, onComplete, onNext, hasNext }) {
+export default function VideoLesson({ videoUrl, lessonId, courseId, onComplete, onNext, hasNext }) {
   const playerRef = useRef(null)
   const containerRef = useRef(null)
   const [player, setPlayer] = useState(null)
@@ -166,6 +167,23 @@ export default function VideoLesson({ videoUrl, lessonId, courseId: _courseId, o
 
     return () => clearInterval(interval)
   }, [player, isPlaying, watchedPercentage, reportWatchProgress])
+
+  useEffect(() => {
+    if (!courseId || !lessonId || !isPlaying) return undefined
+
+    let lastTick = Date.now()
+    const interval = window.setInterval(() => {
+      const now = Date.now()
+      const elapsedSeconds = Math.min(10, Math.floor((now - lastTick) / 1000))
+      lastTick = now
+
+      if (document.visibilityState === 'visible' && elapsedSeconds > 0) {
+        recordLearningSeconds(courseId, lessonId, elapsedSeconds)
+      }
+    }, 5000)
+
+    return () => window.clearInterval(interval)
+  }, [courseId, isPlaying, lessonId])
 
   const handleVideoComplete = useCallback(() => {
     setWatchedPercentage(100)
