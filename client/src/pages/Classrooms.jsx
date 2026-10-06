@@ -12,6 +12,7 @@ export default function Classrooms() {
   const currentUser = useSelector(state => state.user.currentUser)
   const canTeach = ['teacher', 'admin'].includes(currentUser?.role)
   const [title, setTitle] = useState('Science lesson')
+  const [maxParticipants, setMaxParticipants] = useState(100)
   const [code, setCode] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const { data: classrooms = [], isLoading: roomsLoading, isError: roomsError } = useQuery({
@@ -21,7 +22,10 @@ export default function Classrooms() {
   })
 
   const createClassroom = useMutation({
-    mutationFn: () => classroomAPI.create({ title: title.trim() }),
+    mutationFn: () => classroomAPI.create({
+      title: title.trim(),
+      settings: { maxParticipants: Number(maxParticipants) },
+    }),
     onSuccess: response => navigate(response.data.data.joinUrl),
     onError: error => setErrorMessage(getErrorMessage(error)),
   })
@@ -84,6 +88,19 @@ export default function Classrooms() {
                 onChange={event => setTitle(event.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
               />
+              <div>
+                <label htmlFor="classroom-capacity" className="mb-2 block text-sm font-medium text-text-primary">
+                  Student capacity
+                </label>
+                <select
+                  id="classroom-capacity"
+                  value={maxParticipants}
+                  onChange={event => setMaxParticipants(Number(event.target.value))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                >
+                  {[50, 100, 150, 200].map(size => <option key={size} value={size}>{size} students</option>)}
+                </select>
+              </div>
               <button
                 type="submit"
                 disabled={isPending || !title.trim()}
@@ -128,6 +145,9 @@ export default function Classrooms() {
               placeholder="ABC123"
               className="w-full rounded-lg border border-gray-300 px-4 py-3 text-center font-mono text-lg tracking-[0.35em] uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
+            <p className="text-xs text-text-muted">
+              Try the sample classroom code <button type="button" onClick={() => setCode('D3A025')} className="font-mono font-bold text-primary underline underline-offset-2">D3A025</button>.
+            </p>
             <button
               type="submit"
               disabled={isPending || code.length !== 6}

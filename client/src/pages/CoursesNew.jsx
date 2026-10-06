@@ -114,12 +114,12 @@ export default function CoursesNew() {
         <section className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50" aria-labelledby="immersive-course-title">
           <div className="container-custom flex flex-col gap-5 py-7 md:flex-row md:items-center md:justify-between">
             <div className="max-w-3xl">
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-indigo-700">Immersive science spotlight</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-indigo-700">AR &amp; VR science videos</p>
               <h2 id="immersive-course-title" className="mb-2 text-2xl font-bold text-slate-900">{arVrCourse.title}</h2>
-              <p className="text-sm leading-6 text-slate-600">{arVrCourse.description} Includes video lessons, notes, and knowledge checks.</p>
+              <p className="text-sm leading-6 text-slate-600">{arVrCourse.description} Watch the videos on screen or use a compatible 360 video viewer.</p>
             </div>
-            <Link to={`/course/${arVrCourse.id}`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-5 py-3 font-semibold text-white transition hover:bg-indigo-800">
-              Open AR/VR course <ArrowRight size={18} />
+            <Link to="/immersive-videos" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-700 px-5 py-3 font-semibold text-white transition hover:bg-indigo-800">
+              Watch AR/VR videos <ArrowRight size={18} />
             </Link>
           </div>
         </section>

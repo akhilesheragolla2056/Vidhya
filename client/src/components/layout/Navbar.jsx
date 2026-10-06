@@ -14,6 +14,7 @@ import {
   Award,
   Puzzle,
   Sparkles,
+  Video,
 } from 'lucide-react'
 import { logout } from '../../store/slices/userSlice'
 import Logo from '../ui/Logo'
@@ -46,6 +47,7 @@ const navLinks = [
     label: 'Learning Tools',
     type: 'dropdown',
     items: [
+      { label: 'AR & VR learning videos', path: '/immersive-videos', icon: Video },
       { label: 'Science Lab', path: '/science-lab', icon: Beaker },
       { label: 'Games Hub', path: '/games', icon: Sparkles },
       { label: 'Math Sprint', path: '/games/math-sprint', icon: Puzzle },

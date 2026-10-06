@@ -24,6 +24,7 @@ import labRoutes from './routes/labs.js'
 import analyticsRoutes from './routes/analytics.js'
 import progressRoutes from './routes/progress.js'
 import gameRoutes from './routes/games.js'
+import parentLinkRoutes from './routes/parentLinks.js'
 
 // Middleware imports
 import { errorHandler } from './middleware/errorHandler.js'
@@ -148,6 +149,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/courses', courseRoutes)
 app.use('/api/ai', authMiddleware, aiRoutes)
 app.use('/api/classrooms', authMiddleware, classroomRoutes)
+app.use('/api/parent-links', parentLinkRoutes)
 app.use('/api/labs', labRoutes)
 app.use('/api/analytics', authMiddleware, analyticsRoutes)
 app.use('/api/progress', progressRoutes)
@@ -247,6 +249,24 @@ io.on('connection', socket => {
       if (result.matchedCount) io.to(roomId).emit('chat-message', chatMessage)
     } catch (error) {
       console.error('Classroom message could not be saved:', error.message)
+    }
+  })
+
+  socket.on('rtc-signal', ({ roomId, targetUserId, signal } = {}) => {
+    if (
+      roomId !== socket.data.classroomId ||
+      typeof targetUserId !== 'string' ||
+      !signal ||
+      typeof signal !== 'object'
+    ) return
+
+    const memberSocketIds = io.sockets.adapter.rooms.get(roomId)
+    if (!memberSocketIds) return
+    for (const socketId of memberSocketIds) {
+      const recipient = io.sockets.sockets.get(socketId)
+      if (recipient?.user?.id === targetUserId) {
+        recipient.emit('rtc-signal', { senderId: socket.user.id, signal })
+      }
     }
   })
 

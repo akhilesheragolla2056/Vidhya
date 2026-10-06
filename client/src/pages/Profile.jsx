@@ -1,53 +1,161 @@
 import { useSelector } from 'react-redux'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAccessibility } from '../hooks/useAccessibility'
-import { User, Mail, Calendar, Zap, Flame, Trophy, Award, BookOpen, CheckCircle, Clock, Star, Target, FlaskConical, Users, Lock, Settings, Eye, Type, Focus } from 'lucide-react'
+import { User, Mail, Calendar, Zap, Flame, Trophy, Award, BookOpen, CheckCircle, Clock, Star, Target, FlaskConical, Users, Lock, Settings, Eye, Type, Focus, Copy, Link2 } from 'lucide-react'
+import api, { parentLinksAPI } from '../services/api'
+import { coursesData } from '../data/coursesData'
+import { getAllProgress, PROGRESS_STORAGE_KEY } from '../utils/progressTracker'
+import { LEARNING_PROGRESS_UPDATED_EVENT } from '../utils/learningProgressEvents'
+
+function getLocalProfileCourses(savedProgress) {
+  return coursesData.map(course => {
+    const progress = savedProgress[course.id] || {}
+    const completedIds = new Set(Array.isArray(progress.completedLessons) ? progress.completedLessons : [])
+    course.playlist.forEach(lesson => {
+      if (Number(progress.mcqScores?.[lesson.id]?.percentage) >= 60) completedIds.add(lesson.id)
+    })
+    const lessonsCompleted = Math.min(course.playlist.length, completedIds.size)
+    return {
+      id: course.id,
+      title: course.title,
+      lessonsCompleted,
+      completed: course.playlist.length > 0 && lessonsCompleted >= course.playlist.length,
+      activeSeconds: Math.max(0, Number(progress.activeSeconds) || 0),
+      lastAccessed: progress.lastAccessed,
+      started: Boolean(progress.startedAt || progress.lastAccessed || lessonsCompleted),
+    }
+  })
+}
+
+function relativeTime(value) {
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return ''
+  const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000))
+  if (minutes < 1) return 'Just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
 
 function Profile() {
-  const { currentUser, progress } = useSelector((state) => state.user)
+  const currentUser = useSelector(state => state.user.currentUser)
   const { settings, toggleDyslexia, toggleFocus, toggleContrast } = useAccessibility()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('overview')
+  const [localProgress, setLocalProgress] = useState(getAllProgress)
+  const [copiedCode, setCopiedCode] = useState(false)
+  const userId = currentUser?._id || currentUser?.id
+  const user = currentUser || { name: 'Learner', email: '', avatar: null, role: 'student' }
 
-  const user = currentUser || {
-    name: 'Alex Johnson',
-    email: 'alex@example.com',
-    avatar: null,
-    role: 'student',
-    joinedDate: 'January 2024',
+  const { data: serverProgress = {} } = useQuery({
+    queryKey: ['profile-learning-progress', userId],
+    queryFn: async () => {
+      const response = await api.get(`/progress/user/${userId}`)
+      return response.data?.summary || {}
+    },
+    enabled: Boolean(userId && user.role === 'student'),
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
+  })
+  const { data: analytics = {} } = useQuery({
+    queryKey: ['profile-learning-activity', userId],
+    queryFn: async () => (await api.get('/analytics/progress')).data?.data || {},
+    enabled: Boolean(userId && user.role === 'student'),
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
+  })
+  const { data: certificates = [] } = useQuery({
+    queryKey: ['profile-certificates', userId],
+    queryFn: async () => (await api.get('/progress/certificates/user')).data?.data || [],
+    enabled: Boolean(userId && user.role === 'student'),
+    refetchInterval: 20_000,
+    refetchOnWindowFocus: true,
+  })
+  const { data: familyCode } = useQuery({
+    queryKey: ['parent-link-code', userId],
+    queryFn: async () => (await parentLinksAPI.getCode()).data?.data || null,
+    enabled: Boolean(userId && user.role === 'student'),
+    staleTime: 30_000,
+  })
+
+  useEffect(() => {
+    const refresh = event => {
+      setLocalProgress(getAllProgress())
+      if (event?.detail?.activity !== 'learning-time') {
+        void queryClient.invalidateQueries({ queryKey: ['profile-learning-progress', userId] })
+        void queryClient.invalidateQueries({ queryKey: ['profile-learning-activity', userId] })
+      }
+    }
+    const storageRefresh = event => {
+      if (!event.key || event.key === PROGRESS_STORAGE_KEY) refresh()
+    }
+    window.addEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refresh)
+    window.addEventListener('storage', storageRefresh)
+    return () => {
+      window.removeEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refresh)
+      window.removeEventListener('storage', storageRefresh)
+    }
+  }, [queryClient, userId])
+
+  const localCourses = useMemo(() => getLocalProfileCourses(localProgress), [localProgress])
+  const localCompletedCourses = localCourses.filter(course => course.completed).length
+  const localLessonsCompleted = localCourses.reduce((sum, course) => sum + course.lessonsCompleted, 0)
+  const localLearningSeconds = localCourses.reduce((sum, course) => sum + course.activeSeconds, 0)
+  const userProgress = {
+    totalXP: Number(user.progress?.totalXP ?? serverProgress.totalXP ?? 0),
+    level: Number(user.progress?.level ?? serverProgress.level ?? 1),
+    streakDays: Number(user.progress?.streakDays ?? serverProgress.currentStreak ?? 0),
+    coursesCompleted: Math.max(localCompletedCourses, Number(serverProgress.coursesCompleted) || 0),
+    lessonsCompleted: Math.max(localLessonsCompleted, Number(serverProgress.lessonsCompleted) || 0),
+    hoursLearned: Number(Math.max(localLearningSeconds / 3600, Number(serverProgress.totalLearningHours ?? serverProgress.totalHoursLearned) || 0).toFixed(1)),
+    certificatesEarned: certificates.length || Number(serverProgress.certificatesEarned) || 0,
   }
-
-  const userProgress = progress || {
-    totalXP: 2450,
-    level: 12,
-    streakDays: 15,
-    coursesCompleted: 4,
-    lessonsCompleted: 87,
-    hoursLearned: 32,
-    badges: ['first-lesson', 'streak-7', 'lab-explorer', 'quiz-master'],
-  }
-
+  const existingBadges = Array.isArray(user.progress?.badges) ? user.progress.badges : []
+  const badgeKeys = new Set(existingBadges.map(badge => String(typeof badge === 'string' ? badge : badge.id || badge.title || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')))
   const badges = [
-    { id: 'first-lesson', icon: Target, name: 'First Steps', desc: 'Completed first lesson', color: 'text-primary' },
-    { id: 'streak-7', icon: Flame, name: 'On Fire', desc: '7-day streak', color: 'text-accent-orange' },
-    { id: 'streak-30', icon: Zap, name: 'Unstoppable', desc: '30-day streak', locked: true, color: 'text-accent-yellow' },
-    { id: 'lab-explorer', icon: FlaskConical, name: 'Lab Explorer', desc: 'First VR experiment', color: 'text-accent-cyan' },
-    { id: 'quiz-master', icon: Trophy, name: 'Quiz Master', desc: '100% on 5 quizzes', color: 'text-accent-yellow' },
-    { id: 'helper', icon: Users, name: 'Helpful Hand', desc: 'Helped 10 students', locked: true, color: 'text-accent-pink' },
-  ]
+    { id: 'first-lesson', icon: Target, name: 'First Steps', desc: 'Completed your first lesson', color: 'text-primary', earned: userProgress.lessonsCompleted >= 1 },
+    { id: 'course-finisher', icon: BookOpen, name: 'Course Finisher', desc: 'Completed a full course', color: 'text-accent-cyan', earned: userProgress.coursesCompleted >= 1 },
+    { id: 'streak-7', icon: Flame, name: 'On Fire', desc: 'Reached a 7-day learning streak', color: 'text-accent-orange', earned: userProgress.streakDays >= 7 },
+    { id: 'streak-30', icon: Zap, name: 'Unstoppable', desc: 'Reached a 30-day learning streak', color: 'text-accent-yellow', earned: userProgress.streakDays >= 30 },
+    { id: 'lab-explorer', icon: FlaskConical, name: 'Lab Explorer', desc: 'Completed a science lab activity', color: 'text-accent-cyan', earned: localCourses.some(course => course.completed && /science|biology|chemistry|physics/i.test(course.title)) },
+    { id: 'quiz-master', icon: Trophy, name: 'Quiz Master', desc: 'Earned a perfect score on five quizzes', color: 'text-accent-yellow', earned: Object.values(localProgress).flatMap(progress => Object.values(progress.mcqScores || {})).filter(score => Number(score.percentage) === 100).length >= 5 },
+    { id: 'helper', icon: Users, name: 'Helpful Hand', desc: 'Helped ten students', color: 'text-accent-pink' },
+  ].map(badge => ({
+    ...badge,
+    earned: Boolean(badge.earned || badgeKeys.has(badge.id) || badgeKeys.has(badge.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'))),
+    locked: !(badge.earned || badgeKeys.has(badge.id) || badgeKeys.has(badge.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'))),
+  }))
+  const badgeCount = Math.max(badges.filter(badge => badge.earned).length, existingBadges.length)
 
   const stats = [
     { label: 'Courses Completed', value: userProgress.coursesCompleted, icon: BookOpen, color: 'bg-primary/10 text-primary' },
     { label: 'Lessons Completed', value: userProgress.lessonsCompleted, icon: CheckCircle, color: 'bg-accent-cyan/10 text-accent-cyan' },
     { label: 'Hours Learned', value: userProgress.hoursLearned, icon: Clock, color: 'bg-accent-orange/10 text-accent-orange' },
-    { label: 'Badges Earned', value: userProgress.badges.length, icon: Award, color: 'bg-accent-yellow/10 text-accent-yellow' },
+    { label: 'Badges Earned', value: badgeCount, icon: Award, color: 'bg-accent-yellow/10 text-accent-yellow' },
   ]
 
-  const activities = [
-    { action: 'Completed lesson', item: 'Python Variables', time: '2 hours ago', icon: CheckCircle, color: 'text-accent-cyan' },
-    { action: 'Started course', item: 'Machine Learning Basics', time: '1 day ago', icon: Target, color: 'text-primary' },
-    { action: 'Earned badge', item: 'Quiz Master', time: '2 days ago', icon: Trophy, color: 'text-accent-yellow' },
-    { action: 'Completed lab', item: 'Acid-Base Titration', time: '3 days ago', icon: FlaskConical, color: 'text-accent-pink' },
-  ]
+  const localActivities = localCourses
+    .filter(course => course.started && course.lastAccessed)
+    .map(course => ({
+      action: course.completed ? 'Completed course' : 'Learning activity',
+      item: course.title,
+      timestamp: course.lastAccessed,
+      icon: course.completed ? CheckCircle : Target,
+      color: course.completed ? 'text-accent-cyan' : 'text-primary',
+    }))
+  const serverActivities = (analytics.recentActivity || []).map(activity => ({
+    action: activity.type === 'test' ? 'Completed exam' : 'Completed lesson',
+    item: activity.title,
+    timestamp: activity.timestamp,
+    icon: activity.type === 'test' ? Trophy : CheckCircle,
+    color: activity.type === 'test' ? 'text-accent-yellow' : 'text-accent-cyan',
+  }))
+  const activities = [...localActivities, ...serverActivities]
+    .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))
+    .slice(0, 8)
 
   const tabs = ['overview', 'achievements', 'settings', 'accessibility']
 
@@ -71,7 +179,7 @@ function Profile() {
               </p>
               <p className="text-sm text-white/60 mt-1 flex items-center justify-center sm:justify-start gap-2">
                 <Calendar size={14} />
-                Member since {user.joinedDate}
+                Member since {user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : 'recently'}
               </p>
             </div>
             <div className="sm:ml-auto flex gap-6">
@@ -174,12 +282,43 @@ function Profile() {
                           <span className="font-semibold text-text-primary">{activity.item}</span>
                         </p>
                       </div>
-                      <span className="text-xs text-text-muted">{activity.time}</span>
+                      <span className="text-xs text-text-muted">{relativeTime(activity.timestamp)}</span>
                     </div>
                   )
                 })}
+                {activities.length === 0 && <p className="rounded-xl bg-surface-light p-4 text-sm text-text-muted">Your course activity will appear here as you watch lessons and complete knowledge checks.</p>}
               </div>
             </div>
+
+            {user.role === 'student' && (
+              <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/5 to-accent-cyan/5 p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="flex items-center gap-2 font-semibold text-text-primary"><Link2 size={18} className="text-primary" /> Family connection</h2>
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-text-muted">Share this one-time code with your parent so they can view your learning progress, achievements, and certificates.</p>
+                  </div>
+                  {familyCode?.code && (
+                    <div className="flex items-center gap-2">
+                      <code className="rounded-lg border border-gray-200 bg-white px-4 py-2 font-mono text-lg font-bold tracking-[0.16em] text-primary">{familyCode.code}</code>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(familyCode.code)
+                            setCopiedCode(true)
+                            window.setTimeout(() => setCopiedCode(false), 1800)
+                          } catch {
+                            setCopiedCode(false)
+                          }
+                        }}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white hover:bg-primary-dark"
+                      ><Copy size={16} />{copiedCode ? 'Copied' : 'Copy'}</button>
+                    </div>
+                  )}
+                </div>
+                {familyCode?.expiresAt && <p className="mt-2 text-xs text-text-muted">Code expires {new Date(familyCode.expiresAt).toLocaleDateString()} and can be used once.</p>}
+              </div>
+            )}
           </div>
         )}
 

@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/auth.js'
 const router = express.Router()
 
 const userIdOf = user => user?._id?.toString() || user?.id?.toString()
+const SAMPLE_CLASSROOM_CODE = 'D3A025'
 
 export const getClassroom = roomId => Classroom.findById(roomId)
 
@@ -44,7 +45,7 @@ router.get('/', async (req, res, next) => {
     })
       .sort({ updatedAt: -1 })
       .limit(30)
-      .select('code title courseId lessonId host status startedAt endedAt participants createdAt updatedAt')
+      .select('code title courseId lessonId host status scheduledAt startedAt endedAt participants settings createdAt updatedAt')
     res.json({ success: true, data: classrooms })
   } catch (error) {
     next(error)
@@ -53,12 +54,16 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', requireRole('teacher', 'admin'), async (req, res, next) => {
   try {
-    const { title, courseId, lessonId } = req.body
+    const { title, courseId, lessonId, scheduledAt } = req.body
     const settings = req.body.settings && typeof req.body.settings === 'object' && !Array.isArray(req.body.settings)
       ? req.body.settings
       : {}
     if (typeof title !== 'string' || !title.trim() || title.trim().length > 120) {
       throw new ApiError(400, 'A classroom name of up to 120 characters is required')
+    }
+    const parsedScheduledAt = scheduledAt ? new Date(scheduledAt) : null
+    if (scheduledAt && (!Number.isFinite(parsedScheduledAt.getTime()) || parsedScheduledAt <= new Date())) {
+      throw new ApiError(400, 'Choose a future date and time for this lesson')
     }
 
     const classroom = new Classroom({
@@ -66,6 +71,7 @@ router.post('/', requireRole('teacher', 'admin'), async (req, res, next) => {
       title: title.trim(),
       courseId: typeof courseId === 'string' ? courseId : null,
       lessonId: typeof lessonId === 'string' ? lessonId : null,
+      scheduledAt: parsedScheduledAt,
       host: req.user._id,
       settings: {
         allowChat: settings.allowChat !== false,
@@ -73,7 +79,7 @@ router.post('/', requireRole('teacher', 'admin'), async (req, res, next) => {
         allowScreenShare: settings.allowScreenShare === true,
         maxParticipants: Number.isInteger(settings.maxParticipants)
           ? Math.min(200, Math.max(2, settings.maxParticipants))
-          : 50,
+          : 100,
       },
     })
     addClassroomParticipant(classroom, req.user)
@@ -97,9 +103,29 @@ router.post('/join', async (req, res, next) => {
     const code = typeof req.body.code === 'string' ? req.body.code.trim().toUpperCase() : ''
     if (!/^[A-F0-9]{6}$/.test(code)) throw new ApiError(400, 'Enter a valid six-character classroom code')
 
-    const classroom = await Classroom.findOne({ code })
+    let classroom = await Classroom.findOne({ code })
+    if (!classroom && code === SAMPLE_CLASSROOM_CODE) {
+      classroom = new Classroom({
+        code: SAMPLE_CLASSROOM_CODE,
+        title: 'Sample Science Classroom',
+        host: req.user._id,
+        settings: { allowChat: true, allowHandRaise: true, maxParticipants: 200 },
+      })
+    }
+    if (classroom?.status === 'ended' && code === SAMPLE_CLASSROOM_CODE) {
+      classroom.host = req.user._id
+      classroom.status = 'waiting'
+      classroom.startedAt = null
+      classroom.endedAt = null
+      classroom.participants = []
+      classroom.messages = []
+      classroom.whiteboard = ''
+    }
     if (!classroom) throw new ApiError(404, 'Classroom not found')
     if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
+    if (classroom.scheduledAt && classroom.scheduledAt > new Date()) {
+      throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
+    }
 
     const alreadyJoined = requireParticipant(classroom, req.user)
     if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
@@ -126,6 +152,9 @@ router.post('/:id/join', async (req, res, next) => {
     const classroom = await getClassroom(req.params.id)
     if (!classroom) throw new ApiError(404, 'Classroom not found')
     if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
+    if (classroom.scheduledAt && classroom.scheduledAt > new Date()) {
+      throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
+    }
 
     const alreadyJoined = requireParticipant(classroom, req.user)
     if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
@@ -160,6 +189,9 @@ router.post('/:id/start', async (req, res, next) => {
     if (!classroom) throw new ApiError(404, 'Classroom not found')
     if (classroom.host.toString() !== userIdOf(req.user)) throw new ApiError(403, 'Only the host can start the session')
     if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
+    if (classroom.scheduledAt && classroom.scheduledAt > new Date()) {
+      throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
+    }
     classroom.status = 'active'
     classroom.startedAt ||= new Date()
     await classroom.save()

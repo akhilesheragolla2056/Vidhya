@@ -6,6 +6,8 @@ import api, { coursesAPI } from '../services/api'
 import { coursesData } from '../data/coursesData'
 import { getAllProgress, PROGRESS_STORAGE_KEY } from '../utils/progressTracker'
 import { LEARNING_PROGRESS_UPDATED_EVENT } from '../utils/learningProgressEvents'
+import TeacherDashboard from './TeacherDashboard'
+import ParentDashboard from './ParentDashboard'
 import {
   BookOpen,
   FlaskConical,
@@ -128,7 +130,7 @@ function StatCard({ icon: Icon, value, label, trend }) {
   )
 }
 
-function Dashboard() {
+function StudentDashboard() {
   const { currentUser } = useSelector(state => state.user)
   const currentUserId = currentUser?._id || currentUser?.id
   const queryClient = useQueryClient()
@@ -521,4 +523,9 @@ function Dashboard() {
   )
 }
 
-export default Dashboard
+export default function Dashboard() {
+  const currentUser = useSelector(state => state.user.currentUser)
+  if (currentUser?.role === 'teacher') return <TeacherDashboard />
+  if (currentUser?.role === 'parent') return <ParentDashboard />
+  return <StudentDashboard />
+}

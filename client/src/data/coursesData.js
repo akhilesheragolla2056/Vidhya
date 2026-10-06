@@ -2101,56 +2101,167 @@ Prevention is more effective and cheaper than cure in most field crops.
   },
   {
     id: 'arvr-science-foundations',
-    title: 'AR & VR for Interactive Science',
-    category: 'AR & VR Learning',
-    subcategory: 'Immersive Science',
+    title: 'Explore Science in AR & VR',
+    category: 'Immersive Science Videos',
+    subcategory: 'AR & VR video lessons',
     description:
-      'Learn how web-based AR and VR work, build a simple 3D model, and explore how immersive scenes can bring science lessons to life.',
-    instructor: 'Vidhya Immersive Learning Team',
+      'Learn biology, astronomy, chemistry, physics, geography, Earth science, and history through academic AR and VR experiences, with lesson videos, study notes, and knowledge checks.',
+    instructor: 'Vidhya Learning Library',
     difficulty: 'Beginner',
     duration: '1 week',
-    totalLessons: 3,
+    totalLessons: 8,
     rating: 4.9,
     enrolledCount: 0,
     thumbnail: 'https://images.unsplash.com/photo-1617802690992-15d93263d3a9?w=800&h=450&fit=crop',
-    skills: ['WebXR', 'Augmented Reality', 'Virtual Reality', '3D Modeling', 'Science Visualization'],
+    skills: ['Human Biology', 'Astronomy', 'Chemistry', 'Physics', 'Earth Science', 'History', 'AR', 'VR'],
     playlist: [
       createLesson({
-        id: 'arvr-101-webxr',
-        title: 'AR and VR on the web with WebXR',
-        duration: '5 min',
-        videoUrl: 'https://www.youtube.com/watch?v=ttDyimAk88Y',
-        notes: `# AR and VR on the web\n\nWebXR lets a browser present immersive virtual reality and camera-based augmented reality when a device and browser support those modes. The same lesson should still work as an interactive 3D scene on a regular screen.\n\n## Explore\n- AR places digital objects into the camera view of the real world.\n- VR replaces the view with an immersive digital environment.\n- A secure HTTPS page and compatible device are needed for immersive WebXR sessions.\n\nOpen the Science Lab after this lesson to explore the interactive anatomy and circulation models.`,
-        question: 'What does augmented reality add to the learner’s view?',
-        options: ['Digital objects over a view of the real world', 'A completely replaced virtual world', 'Only a 2D quiz', 'A downloaded video file'],
+        id: 'arvr-101-body-vr',
+        title: 'Travel through the human body in VR',
+        duration: '360° science video',
+        videoUrl: 'https://www.youtube.com/watch?v=-FyN5_-njAU',
+        notes: `# Inside the human body
+
+This 360° science video gives a spatial view of the body's systems. As you look around, notice how organs sit in relation to one another and how food and oxygen move through the body.
+
+## While you watch
+- Name two organs you can see.
+- Describe how the heart and lungs work together to move oxygen.
+- Look around on a phone or drag the video on a computer; a headset is optional.`,
+        question: 'What do the heart and lungs work together to move around the body?',
+        options: ['Oxygen', 'Sound waves', 'Light', 'Soil nutrients'],
         correctAnswer: 0,
-        explanation: 'AR layers digital content over the real environment viewed through a compatible device.',
+        explanation: 'The lungs add oxygen to the blood, and the heart pumps that blood around the body.',
       }),
       createLesson({
-        id: 'arvr-101-modeling',
-        title: 'Build and think in 3D',
-        duration: 'Beginner tutorial',
-        videoUrl: 'https://www.youtube.com/watch?v=elUJCEC06r8',
-        notes: `# 3D models for science\n\nA 3D model uses vertices, edges, and faces to describe an object's shape. A useful learning model prioritizes clear scale, labels, and a view that helps learners understand the structure.\n\n## Model planning\n1. Choose one learning objective.\n2. Block out large shapes before adding detail.\n3. Use color and labels consistently.\n4. Check that the model is understandable from different angles.\n\nThe video is an independent beginner modeling walkthrough. Its Blender interface may differ from newer releases.`,
-        question: 'What is a good first step when modeling a learning object?',
-        options: ['Block out the main shapes', 'Add tiny surface details', 'Hide the scale', 'Use random colors'],
+        id: 'arvr-101-earth-arvr',
+        title: 'Explore a coral reef in 360° VR',
+        duration: 'National Geographic 360°',
+        videoUrl: 'https://www.youtube.com/watch?v=VVaYEnZUNHI',
+        notes: `# Coral reefs and conservation
+
+Take a 360° reef visit and observe the habitat from a diver's point of view. Coral reefs support diverse marine life, and warming water, pollution, and physical damage can put these ecosystems under pressure.
+
+## While you watch
+- Identify one living thing that depends on the reef.
+- Notice how the reef provides shelter.
+- Think of one action that can reduce harm to coastal habitats.`,
+        question: 'What is one important role a coral reef plays?',
+        options: ['It provides habitat and shelter for marine life', 'It removes all salt from the ocean', 'It stops tides from moving', 'It creates freshwater rivers'],
         correctAnswer: 0,
-        explanation: 'Starting with the main shapes keeps the model aligned with its learning objective.',
+        explanation: 'Coral reefs provide food, shelter, and nursery areas for many marine species.',
       }),
       createLesson({
-        id: 'arvr-101-aframe',
-        title: 'Create an immersive 3D scene',
-        duration: 'VR scene walkthrough',
-        videoUrl: 'https://www.youtube.com/watch?v=pVetLvb3deE',
-        notes: `# From 3D scene to immersive lesson\n\nA-Frame describes scenes with entities and components. A scene can combine primitive geometry, materials, position, camera controls, and animations.\n\n## In this project\n- Drag to inspect the 3D lab on a screen.\n- Use the enter VR or AR control when the browser reports that a compatible device mode is available.\n- Try the same lesson on desktop first if a headset or AR-capable phone is not available.\n\nThe linked video teaches foundational scene building. The project uses current WebXR behavior, so some older video labels and menus will differ.`,
-        question: 'Why should an immersive science lesson also work in a regular browser view?',
-        options: ['So learners can use it without a compatible headset or AR device', 'So the 3D model cannot be rotated', 'So it no longer needs a learning objective', 'So all devices enter VR automatically'],
+        id: 'arvr-101-solar-vr',
+        title: 'Journey through the solar system in VR',
+        duration: '360° space journey',
+        videoUrl: 'https://www.youtube.com/watch?v=6c6k57ZZh9o',
+        notes: `# A 360° tour of the solar system
+
+Travel past planets and moons and compare their surfaces and surroundings. The video is a visual model rather than a scale-accurate map: distances and object sizes are compressed so the journey fits on screen.
+
+## While you watch
+- Put the planets you see in order from the Sun.
+- Compare a rocky planet with a gas giant.
+- Explain why a short video cannot show both planet size and orbital distance to scale.`,
+        question: 'Why are the sizes and distances in a short solar system tour simplified?',
+        options: ['To make the whole journey viewable while showing relationships', 'Because planets have no real size', 'Because planets do not orbit the Sun', 'To show that every planet is the same distance away'],
         correctAnswer: 0,
-        explanation: 'A normal 3D view keeps the lesson accessible on devices that do not support immersive WebXR modes.',
+        explanation: 'Solar system videos compress enormous distances and sizes to make the relationships easier to view.',
+      }),
+      createLesson({
+        id: 'arvr-101-classroom-ar',
+        title: 'See augmented reality used in a classroom',
+        duration: 'Google for Education',
+        videoUrl: 'https://www.youtube.com/watch?v=3sIcDgZlgMU',
+        notes: `# Science objects in augmented reality
+
+This classroom example shows how a digital 3D object can appear alongside the real classroom view. In a biology lesson, students can move around a model to inspect parts and relationships that are hard to see in a flat diagram.
+
+## Think about it
+- Which part of a 3D model would you inspect from another angle?
+- What labels would help explain the model?
+- How could a student complete the activity without an AR-capable device?`,
+        question: 'What does augmented reality add to a classroom view?',
+        options: ['Digital models that students can inspect alongside the real world', 'A replacement for every classroom lesson', 'A printed 2D diagram only', 'A virtual headset that every learner must own'],
+        correctAnswer: 0,
+        explanation: 'AR places digital objects into the view of the real world so learners can inspect them in context.',
+      }),
+      createLesson({
+        id: 'arvr-101-chemistry-vr',
+        title: 'Build and explore molecules in 3D',
+        duration: '3D chemistry lesson',
+        videoUrl: 'https://www.youtube.com/watch?v=YNc97Cp-wGM',
+        notes: `# Atoms, molecules, and chemical bonds
+
+Molecules are groups of atoms joined by chemical bonds. A three-dimensional model makes it easier to see that atoms connect in particular arrangements rather than sitting on a flat page.
+
+## While you watch
+- Identify the atoms and bonds in one molecule.
+- Rotate the 3D model and describe which atoms are connected.
+- Explain how a reaction can rearrange atoms into new substances while conserving the atoms themselves.`,
+        question: 'What happens to atoms during a chemical reaction?',
+        options: ['They are rearranged into new combinations', 'They disappear completely', 'They turn into light', 'They stop moving forever'],
+        correctAnswer: 0,
+        explanation: 'Chemical reactions break and form bonds, rearranging atoms into different molecules.',
+      }),
+      createLesson({
+        id: 'arvr-101-physics-vr',
+        title: 'Experiment with forces and motion',
+        duration: 'PhET simulation lesson',
+        videoUrl: 'https://www.youtube.com/watch?v=bzwnWvuyvS0',
+        notes: `# Forces change motion
+
+In a virtual experiment, students can vary a push or pull and observe how the net force changes an object's motion. Virtual setups let you repeat a trial safely and compare what happens when one factor changes.
+
+## While you watch
+- Note the direction of the applied force.
+- Compare motion when forces are balanced and unbalanced.
+- Predict what will happen before changing a force in the simulation.`,
+        question: 'What can an unbalanced net force do to an object\'s motion?',
+        options: ['Change its speed or direction', 'Make its mass vanish', 'Remove gravity from the universe', 'Keep it permanently at rest'],
+        correctAnswer: 0,
+        explanation: 'An unbalanced force causes acceleration, which is a change in speed, direction, or both.',
+      }),
+      createLesson({
+        id: 'arvr-101-history-vr',
+        title: 'Visit Ancient Rome in a virtual tour',
+        duration: '3D historical exploration',
+        videoUrl: 'https://www.youtube.com/watch?v=-IqkKRscoIc',
+        notes: `# Read a historical place
+
+A virtual tour can help us inspect the layout of an ancient city and notice how monuments, public spaces, and artifacts relate to daily life. Treat a reconstruction as a model informed by historical evidence.
+
+## While you watch
+- Identify a public structure or artifact in the tour.
+- Consider what its location tells you about the city.
+- Ask what evidence historians would use to check a reconstruction.`,
+        question: 'What can a virtual reconstruction help a history student investigate?',
+        options: ['How buildings and public spaces relate to one another', 'The exact thoughts of every ancient resident', 'A future event that has not happened', 'The weather on every day in Roman history'],
+        correctAnswer: 0,
+        explanation: 'A reconstruction can help students examine spatial relationships while evidence and sources support historical interpretations.',
+      }),
+      createLesson({
+        id: 'arvr-101-cell-vr',
+        title: 'Explore the cell and its mitochondria',
+        duration: '3D cell biology animation',
+        videoUrl: 'https://www.youtube.com/watch?v=RrS2uROUjK4',
+        notes: `# Inside a living cell
+
+Cells contain specialized structures called organelles. The nucleus stores genetic information, the cell membrane forms a boundary, and mitochondria help release usable energy from food molecules.
+
+## While you watch
+- Locate the mitochondria and note what happens there.
+- Find the nucleus and cell boundary in a cell model.
+- Explain why a 3D view helps you see how structures fit inside the cell.`,
+        question: 'What is a key role of mitochondria in a cell?',
+        options: ['Help release usable energy from food molecules', 'Store all oxygen in the lungs', 'Build the cell wall of every animal cell', 'Carry sound from the ear to the brain'],
+        correctAnswer: 0,
+        explanation: 'Mitochondria help convert energy from food molecules into ATP that cells can use.',
       }),
     ],
   },
-  ...supplementalCourses,
+  ...supplementalCourses.filter(course => course.category !== 'AR & VR Learning'),
 ]
 
 /**

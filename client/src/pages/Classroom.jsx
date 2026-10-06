@@ -8,17 +8,24 @@ import {
   BookOpen,
   Code,
   Hand,
+  Mic,
+  MicOff,
   MessageSquare,
+  PhoneOff,
   Send,
   Share,
   Users,
+  Video,
+  VideoOff,
 } from 'lucide-react'
 import { useSocket } from '../hooks/useSocket'
+import { useClassroomMedia } from '../hooks/useClassroomMedia'
 import { classroomAPI, coursesAPI } from '../services/api'
 import { updateWhiteboard } from '../store/slices/classroomSlice'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 const tabs = [
+  { id: 'meeting', label: 'Meeting', icon: Video },
   { id: 'lesson', label: 'Lesson', icon: BookOpen },
   { id: 'whiteboard', label: 'Shared notes', icon: Share },
   { id: 'code', label: 'Code', icon: Code },
@@ -50,7 +57,7 @@ function Classroom() {
     state => state.classroom
   )
   const [messageInput, setMessageInput] = useState('')
-  const [activeTab, setActiveTab] = useState('lesson')
+  const [activeTab, setActiveTab] = useState('meeting')
   const [code, setCode] = useState('')
   const { data: session, isLoading, error } = useQuery({
     queryKey: ['classroom-session', id],
@@ -61,7 +68,14 @@ function Classroom() {
     retry: false,
   })
 
-  const { isConnected, sendMessage, toggleHand, sendWhiteboardUpdate, announceRoomEnded } = useSocket(session?.id)
+  const { isConnected, sendMessage, toggleHand, sendWhiteboardUpdate, announceRoomEnded, socket } = useSocket(session?.id)
+  const { localStream, remoteStreams, cameraOn, micOn, mediaError, toggleCamera, toggleMic } = useClassroomMedia({
+    socket,
+    roomId: session?.id,
+    participants,
+    currentUserId: currentUser?._id || currentUser?.id,
+    isConnected,
+  })
 
   const endClassroom = useMutation({
     mutationFn: async () => {
@@ -156,7 +170,7 @@ function Classroom() {
               {isConnected ? 'Connected' : 'Reconnecting'}
             </span>
             <span className="flex items-center gap-2 text-sm text-slate-200">
-              <Users size={16} /> {participants.length}
+              <Users size={16} /> {participants.length} / {session.settings?.maxParticipants || 100}
             </span>
             {isHost ? (
               <button
@@ -226,6 +240,109 @@ function Classroom() {
                         : 'This room is ready. Shared notes and chat are available while the instructor prepares the lesson.'}
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'meeting' && (
+              <div className="flex flex-1 flex-col bg-slate-950 p-4 md:p-6">
+                <div className="mb-4 flex items-center justify-between gap-3 text-white">
+                  <div>
+                    <h2 className="font-semibold">Live classroom</h2>
+                    <p className="text-xs text-slate-400">Turn on your camera or microphone when you are ready.</p>
+                  </div>
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-xs">{participants.length} here</span>
+                </div>
+                <div className="grid flex-1 auto-rows-fr grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <div className="relative min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+                    {cameraOn && localStream ? (
+                      <video
+                        autoPlay
+                        playsInline
+                        muted
+                        ref={element => {
+                          if (element && element.srcObject !== localStream) element.srcObject = localStream
+                        }}
+                        className="h-full min-h-52 w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full min-h-52 flex-col items-center justify-center gap-3 text-slate-300">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-600 text-xl font-bold text-white">
+                          {currentUser?.name?.charAt(0)?.toUpperCase() || 'Y'}
+                        </div>
+                        <span className="text-sm">Camera is off</span>
+                      </div>
+                    )}
+                    <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+                      {currentUser?.name || 'You'} (you)
+                    </span>
+                  </div>
+                  {participants
+                    .filter(person => String(person.id) !== String(currentUserId))
+                    .map(person => {
+                      const stream = remoteStreams[person.id]
+                      return (
+                        <div key={person.id} className="relative min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-800">
+                          {stream ? (
+                            <video
+                              autoPlay
+                              playsInline
+                              ref={element => {
+                                if (element && element.srcObject !== stream) element.srcObject = stream
+                              }}
+                              className="h-full min-h-52 w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full min-h-52 flex-col items-center justify-center gap-3 text-slate-300">
+                              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-600 text-xl font-bold text-white">
+                                {person.name?.charAt(0)?.toUpperCase() || 'S'}
+                              </div>
+                              <span className="text-sm">Camera is off</span>
+                            </div>
+                          )}
+                          <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
+                            {person.name || 'Participant'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                </div>
+                {mediaError && (
+                  <p role="status" className="mt-3 rounded-lg border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
+                    {mediaError}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void toggleMic()}
+                    aria-pressed={micOn}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${micOn ? 'bg-white text-slate-900 hover:bg-slate-100' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+                  >
+                    {micOn ? <Mic size={18} /> : <MicOff size={18} />}
+                    {micOn ? 'Mute mic' : 'Turn on mic'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void toggleCamera()}
+                    aria-pressed={cameraOn}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition ${cameraOn ? 'bg-white text-slate-900 hover:bg-slate-100' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+                  >
+                    {cameraOn ? <Video size={18} /> : <VideoOff size={18} />}
+                    {cameraOn ? 'Stop video' : 'Start video'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleHand(!isHandRaised)}
+                    disabled={!isConnected}
+                    aria-pressed={isHandRaised}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition disabled:opacity-50 ${isHandRaised ? 'bg-amber-300 text-amber-950' : 'bg-slate-700 text-white hover:bg-slate-600'}`}
+                  >
+                    <Hand size={18} /> {isHandRaised ? 'Lower hand' : 'Raise hand'}
+                  </button>
+                  <Link to="/classrooms" className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700">
+                    <PhoneOff size={18} /> Leave meeting
+                  </Link>
                 </div>
               </div>
             )}

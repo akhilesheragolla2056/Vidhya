@@ -28,6 +28,10 @@ const userSchema = new mongoose.Schema(
       enum: ['student', 'teacher', 'parent', 'admin'],
       default: 'student',
     },
+    parentLinkCode: { type: String, unique: true, sparse: true },
+    parentLinkCodeExpiresAt: Date,
+    linkedChildren: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    linkedParents: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     avatar: String,
     learningProfile: {
       preferredLanguage: { type: String, default: 'en' },

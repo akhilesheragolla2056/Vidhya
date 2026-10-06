@@ -138,6 +138,17 @@ export const analyticsAPI = {
   getStudentStats: id => api.get(`/analytics/student/${id}`),
 }
 
+export const parentLinksAPI = {
+  getCode: () => api.get('/parent-links/code'),
+  connect: code => api.post('/parent-links/connect', { code }),
+  getChildren: () => api.get('/parent-links/children'),
+}
+
+export const testsAPI = {
+  create: payload => api.post('/tests', payload),
+  getTeacherTests: () => api.get('/tests/teacher/mine'),
+}
+
 export const gamesAPI = {
   getDailyMissions: () => api.get('/games/daily-missions'),
   updateMissionProgress: (missionId, amount = 1) =>

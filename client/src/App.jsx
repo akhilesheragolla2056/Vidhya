@@ -20,6 +20,7 @@ import { useAccessibility } from './hooks/useAccessibility'
 // Lazy load pages for code splitting
 const Landing = lazy(() => import('./pages/Landing'))
 const LearningShowcase = lazy(() => import('./pages/LearningShowcase'))
+const ImmersiveVideos = lazy(() => import('./pages/ImmersiveVideos'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Classroom = lazy(() => import('./pages/Classroom'))
 const Classrooms = lazy(() => import('./pages/Classrooms'))
@@ -103,13 +104,10 @@ function App() {
           <Routes>
             <Route
               path="/"
-              element={
-                <PublicRoute>
-                  <Landing />
-                </PublicRoute>
-              }
+              element={<Landing />}
             />
             <Route path="/learning" element={<LearningShowcase />} />
+            <Route path="/immersive-videos" element={<ImmersiveVideos />} />
             <Route
               path="/login"
               element={

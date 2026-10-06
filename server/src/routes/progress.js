@@ -8,7 +8,7 @@ import VideoProgress from '../models/VideoProgress.js'
 import Certificate from '../models/Certificate.js'
 import Course from '../models/Course.js'
 import User from '../models/User.js'
-import { authMiddleware } from '../middleware/auth.js'
+import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = express.Router()
@@ -66,6 +66,86 @@ router.get('/course/:courseId', async (req, res, next) => {
       success: true,
       data: tests,
     })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/teacher/mine', authMiddleware, requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const tests = await MockTest.find({ createdBy: req.user._id })
+      .select('title description course duration totalPoints passingScore questions._id isPublished createdAt')
+      .populate('course', 'title category')
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean()
+
+    res.json({ success: true, data: tests.map(test => ({
+      ...test,
+      totalQuestions: test.questions?.length || 0,
+      questions: undefined,
+    })) })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.post('/', authMiddleware, requireRole('teacher', 'admin'), async (req, res, next) => {
+  try {
+    const { course, title, description = '', instructions = '', questions, duration = 30, passingScore = 70 } = req.body
+    if (typeof course !== 'string' || !mongoose.isValidObjectId(course)) {
+      throw new ApiError(400, 'Choose a course before creating the exam')
+    }
+    if (typeof title !== 'string' || !title.trim() || title.trim().length > 120) {
+      throw new ApiError(400, 'Enter an exam title of up to 120 characters')
+    }
+    if (!Array.isArray(questions) || questions.length < 1 || questions.length > 50) {
+      throw new ApiError(400, 'Add between 1 and 50 questions')
+    }
+    const safeDuration = Number(duration)
+    const safePassingScore = Number(passingScore)
+    if (!Number.isInteger(safeDuration) || safeDuration < 5 || safeDuration > 240) {
+      throw new ApiError(400, 'Exam duration must be between 5 and 240 minutes')
+    }
+    if (!Number.isFinite(safePassingScore) || safePassingScore < 0 || safePassingScore > 100) {
+      throw new ApiError(400, 'Passing score must be between 0 and 100')
+    }
+    const courseExists = await Course.exists({ _id: course })
+    if (!courseExists) throw new ApiError(404, 'Course not found')
+
+    const normalizedQuestions = questions.map((question, index) => {
+      const prompt = typeof question?.question === 'string' ? question.question.trim() : ''
+      const options = Array.isArray(question?.options)
+        ? question.options.map(option => typeof option === 'string' ? option.trim() : '').filter(Boolean)
+        : []
+      const correctAnswer = Number(question?.correctAnswer)
+      if (!prompt || prompt.length > 1000 || options.length < 2 || options.length > 8 || !Number.isInteger(correctAnswer) || correctAnswer < 0 || correctAnswer >= options.length) {
+        throw new ApiError(400, `Question ${index + 1} needs text, 2 to 8 options, and a valid correct answer`)
+      }
+      return {
+        question: prompt,
+        type: 'single',
+        options,
+        correctAnswer,
+        explanation: typeof question.explanation === 'string' ? question.explanation.trim().slice(0, 1000) : '',
+        points: Math.min(10, Math.max(1, Number(question.points) || 1)),
+        difficulty: ['easy', 'medium', 'hard'].includes(question.difficulty) ? question.difficulty : 'medium',
+      }
+    })
+    const totalPoints = normalizedQuestions.reduce((total, question) => total + question.points, 0)
+    const test = await MockTest.create({
+      course,
+      title: title.trim(),
+      description: typeof description === 'string' ? description.trim().slice(0, 1000) : '',
+      instructions: typeof instructions === 'string' ? instructions.trim().slice(0, 2000) : '',
+      questions: normalizedQuestions,
+      duration: safeDuration,
+      totalPoints,
+      passingScore: safePassingScore,
+      createdBy: req.user._id,
+      isPublished: true,
+    })
+    res.status(201).json({ success: true, data: test })
   } catch (error) {
     next(error)
   }
