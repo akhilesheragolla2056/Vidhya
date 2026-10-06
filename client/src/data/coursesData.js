@@ -2264,6 +2264,29 @@ Cells contain specialized structures called organelles. The nucleus stores genet
   ...supplementalCourses.filter(course => course.category !== 'AR & VR Learning'),
 ]
 
+// Keep the course catalogue visually distinct: every course gets its own
+// photo instead of hashing into a small category pool that repeats images.
+export const coursePhotoIds = [
+  'photo-1555949963-aa79dcee981c', 'photo-1526379095098-d400fd0bf935', 'photo-1550751827-4bd374c3f58b',
+  'photo-1554224155-6726b3ff858f', 'photo-1530026405186-ed1f139313f8', 'photo-1551288049-bebda4e38f71',
+  'photo-1544367567-0f2fcb009e0b', 'photo-1498050108023-c5249f4df085', 'photo-1456513080510-7bf3a84b82f8',
+  'photo-1501004318641-b39e6451bec6', 'photo-1464226184884-fa280b87c399', 'photo-1586773860418-d37222d8fce3',
+  'photo-1617802690992-15d93263d3a9', 'photo-1523240795612-9a054b0db644', 'photo-1531482615713-2afd69097998',
+  'photo-1516321497487-e288fb19713f', 'photo-1472396961693-142e6e269027', 'photo-1446776811953-b23d57bd21aa',
+  'photo-1532094349884-543bc11b234d', 'photo-1524178232363-1fb2b075b655', 'photo-1462331940025-496dfbfc7564',
+  'photo-1503676260728-1c00da094a0b', 'photo-1481627834876-b7833e8f5570', 'photo-1516321318423-f06f85e504b3',
+  'photo-1461749280684-dccba630e2f6', 'photo-1519389950473-47ba0277781c', 'photo-1522202176988-66273c2fd55f',
+  'photo-1518770660439-4636190af475', 'photo-1497633762265-9d179a990aa6', 'photo-1509062522246-3755977927d7',
+  'photo-1434030216411-0b793f4b4173', 'photo-1504274066651-8d31a536b11a', 'photo-1558618666-fcd25c85cd64',
+  'photo-1517836357463-d25dfeac3438', 'photo-1571019613454-1cb2f99b2d8b', 'photo-1592982537447-7440770cbfc9',
+  'photo-1523050854058-8df90110c9f1',
+]
+
+coursesData.forEach((course, index) => {
+  const photoId = coursePhotoIds[index]
+  if (photoId) course.thumbnail = `https://images.unsplash.com/${photoId}?w=800&h=450&fit=crop&auto=format&q=80`
+})
+
 /**
  * Get course by ID
  */

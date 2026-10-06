@@ -7,8 +7,10 @@ import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
 import { createServer } from 'http'
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import { Server } from 'socket.io'
+import { createAdapter } from '@socket.io/redis-adapter'
+import { createClient } from 'redis'
 import mongoose from 'mongoose'
 import rateLimit from 'express-rate-limit'
 import jwt from 'jsonwebtoken'
@@ -101,6 +103,7 @@ io.use(async (socket, next) => {
       name: user.name,
       avatar: user.avatar || null,
     }
+    socket.data.user = socket.user
     next()
   } catch {
     next(new Error('Invalid or expired session'))
@@ -156,19 +159,48 @@ app.use('/api/progress', progressRoutes)
 app.use('/api/tests', progressRoutes)
 app.use('/api/games', authMiddleware, gameRoutes)
 
-const roomParticipants = (roomId, excludedSocketId) => {
-  const memberSocketIds = io.sockets.adapter.rooms.get(roomId)
-  if (!memberSocketIds) return []
-
+const roomParticipants = async (roomId, excludedSocketId) => {
+  const roomSockets = await io.in(roomId).fetchSockets()
   const participants = new Map()
-  for (const socketId of memberSocketIds) {
-    if (socketId === excludedSocketId) continue
-    const participantSocket = io.sockets.sockets.get(socketId)
-    if (participantSocket?.user) {
-      participants.set(participantSocket.user.id, participantSocket.user)
-    }
+  for (const participantSocket of roomSockets) {
+    if (participantSocket.id === excludedSocketId) continue
+    const user = participantSocket.data?.user
+    if (user) participants.set(user.id, user)
   }
   return Array.from(participants.values())
+}
+
+const classroomIceServers = user => {
+  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }]
+  const turnUrls = (process.env.TURN_URLS || '').split(',').map(url => url.trim()).filter(Boolean)
+  if (!turnUrls.length) return iceServers
+
+  if (process.env.TURN_SECRET) {
+    const username = `${Math.floor(Date.now() / 1000) + 3600}:${user.id}`
+    const credential = createHmac('sha1', process.env.TURN_SECRET).update(username).digest('base64')
+    iceServers.push({ urls: turnUrls, username, credential })
+  } else if (process.env.TURN_USERNAME && process.env.TURN_CREDENTIAL) {
+    iceServers.push({ urls: turnUrls, username: process.env.TURN_USERNAME, credential: process.env.TURN_CREDENTIAL })
+  }
+  return iceServers
+}
+
+async function configureSocketAdapter() {
+  const redisUrl = process.env.REDIS_URL
+  if (!redisUrl) {
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('REDIS_URL is not set. Classroom sockets will work only when all participants reach this server instance.')
+    }
+    return
+  }
+
+  const publisher = createClient({ url: redisUrl })
+  const subscriber = publisher.duplicate()
+  publisher.on('error', error => console.error('Classroom Redis publisher error:', error.message))
+  subscriber.on('error', error => console.error('Classroom Redis subscriber error:', error.message))
+  await Promise.all([publisher.connect(), subscriber.connect()])
+  io.adapter(createAdapter(publisher, subscriber))
+  console.log('Socket.IO Redis adapter enabled')
 }
 
 // Socket.IO connection handling
@@ -179,36 +211,42 @@ io.on('connection', socket => {
       return
     }
 
-    const classroom = await getClassroom(roomId)
-    const isParticipant = classroom?.participants.some(
-      participant => participant.userId === socket.user.id
-    )
-    if (!classroom || classroom.status === 'ended' || !isParticipant) {
-      acknowledge({ success: false, message: 'Join this classroom before connecting' })
-      return
-    }
+    try {
+      const classroom = await getClassroom(roomId)
+      const isParticipant = classroom?.participants.some(
+        participant => participant.userId === socket.user.id
+      )
+      if (!classroom || classroom.status === 'ended' || !isParticipant) {
+        acknowledge({ success: false, message: 'Join this classroom before connecting' })
+        return
+      }
 
-    if (socket.data.classroomId && socket.data.classroomId !== roomId) {
-      socket.leave(socket.data.classroomId)
-      socket.to(socket.data.classroomId).emit('user-left', socket.user.id)
-      io.to(socket.data.classroomId).emit('room-participants', roomParticipants(socket.data.classroomId))
-    }
+      if (socket.data.classroomId && socket.data.classroomId !== roomId) {
+        const previousRoomId = socket.data.classroomId
+        await socket.leave(previousRoomId)
+        socket.to(previousRoomId).emit('user-left', socket.user.id)
+        io.to(previousRoomId).emit('room-participants', await roomParticipants(previousRoomId))
+      }
 
-    socket.data.classroomId = roomId
-    await socket.join(roomId)
-    socket.to(roomId).emit('user-joined', socket.user)
-    io.to(roomId).emit('room-participants', roomParticipants(roomId))
-    socket.emit('whiteboard-update', classroom.whiteboard || '')
-    socket.emit('chat-history', classroom.messages.slice(-100))
-    acknowledge({ success: true })
+      socket.data.classroomId = roomId
+      await socket.join(roomId)
+      socket.to(roomId).emit('user-joined', socket.user)
+      io.to(roomId).emit('room-participants', await roomParticipants(roomId))
+      socket.emit('whiteboard-update', classroom.whiteboard || '')
+      socket.emit('chat-history', classroom.messages.slice(-100))
+      acknowledge({ success: true, iceServers: classroomIceServers(socket.user) })
+    } catch (error) {
+      console.error('Could not connect classroom socket:', error.message)
+      acknowledge({ success: false, message: 'The classroom connection failed. Please try again.' })
+    }
   })
 
-  socket.on('leave-room', ({ roomId } = {}) => {
+  socket.on('leave-room', async ({ roomId } = {}) => {
     if (!roomId || roomId !== socket.data.classroomId) return
-    socket.leave(roomId)
+    await socket.leave(roomId)
     socket.data.classroomId = null
     socket.to(roomId).emit('user-left', socket.user.id)
-    io.to(roomId).emit('room-participants', roomParticipants(roomId))
+    io.to(roomId).emit('room-participants', await roomParticipants(roomId))
   })
 
   socket.on('announce-classroom-ended', async ({ roomId } = {}, acknowledge = () => {}) => {
@@ -260,14 +298,7 @@ io.on('connection', socket => {
       typeof signal !== 'object'
     ) return
 
-    const memberSocketIds = io.sockets.adapter.rooms.get(roomId)
-    if (!memberSocketIds) return
-    for (const socketId of memberSocketIds) {
-      const recipient = io.sockets.sockets.get(socketId)
-      if (recipient?.user?.id === targetUserId) {
-        recipient.emit('rtc-signal', { senderId: socket.user.id, signal })
-      }
-    }
+    io.to(roomId).emit('rtc-signal', { senderId: socket.user.id, targetUserId, signal })
   })
 
   socket.on('hand-raise', ({ roomId, isRaised } = {}) => {
@@ -307,7 +338,9 @@ io.on('connection', socket => {
     const roomId = socket.data.classroomId
     if (!roomId) return
     socket.to(roomId).emit('user-left', socket.user.id)
-    io.to(roomId).emit('room-participants', roomParticipants(roomId, socket.id))
+    roomParticipants(roomId, socket.id)
+      .then(participants => io.to(roomId).emit('room-participants', participants))
+      .catch(error => console.error('Could not refresh classroom participants:', error.message))
   })
 })
 
@@ -340,8 +373,9 @@ if (!rawMongoUri) {
 
 mongoose
   .connect(MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('Connected to MongoDB')
+    await configureSocketAdapter()
     httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`)
       console.log(`Allowed CORS origins: ${allowedOrigins.join(', ')}`)

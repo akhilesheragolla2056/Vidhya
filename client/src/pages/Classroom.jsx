@@ -68,13 +68,23 @@ function Classroom() {
     retry: false,
   })
 
-  const { isConnected, sendMessage, toggleHand, sendWhiteboardUpdate, announceRoomEnded, socket } = useSocket(session?.id)
+  const {
+    isConnected,
+    connectionError,
+    iceServers,
+    sendMessage,
+    toggleHand,
+    sendWhiteboardUpdate,
+    announceRoomEnded,
+    socket,
+  } = useSocket(session?.id)
   const { localStream, remoteStreams, cameraOn, micOn, mediaError, toggleCamera, toggleMic } = useClassroomMedia({
     socket,
     roomId: session?.id,
     participants,
     currentUserId: currentUser?._id || currentUser?.id,
     isConnected,
+    iceServers,
   })
 
   const endClassroom = useMutation({
@@ -191,6 +201,12 @@ function Classroom() {
             )}
           </div>
         </header>
+
+        {connectionError && (
+          <p role="alert" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+            {connectionError} Check that the deployed API allows this site and supports WebSockets.
+          </p>
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <main className="flex min-h-[440px] min-w-0 flex-1 flex-col">

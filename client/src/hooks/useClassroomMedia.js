@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const rtcConfiguration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-}
-
-export function useClassroomMedia({ socket, roomId, participants, currentUserId, isConnected }) {
+export function useClassroomMedia({ socket, roomId, participants, currentUserId, isConnected, iceServers }) {
   const peerConnections = useRef(new Map())
   const localStreamRef = useRef(null)
   const [localStream, setLocalStream] = useState(null)
@@ -23,7 +19,9 @@ export function useClassroomMedia({ socket, roomId, participants, currentUserId,
     const existing = peerConnections.current.get(id)
     if (existing) return existing
 
-    const connection = new RTCPeerConnection(rtcConfiguration)
+    const connection = new RTCPeerConnection({
+      iceServers: iceServers?.length ? iceServers : [{ urls: 'stun:stun.l.google.com:19302' }],
+    })
     const audioTransceiver = connection.addTransceiver('audio', { direction: 'sendrecv' })
     const videoTransceiver = connection.addTransceiver('video', { direction: 'sendrecv' })
     const localAudio = localStreamRef.current?.getAudioTracks()[0]
@@ -47,6 +45,9 @@ export function useClassroomMedia({ socket, roomId, participants, currentUserId,
     }
     connection.onconnectionstatechange = () => {
       if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
+        if (connection.connectionState === 'failed') {
+          setMediaError('A participant media connection failed. Configure TURN relay settings for restrictive networks.')
+        }
         connection.close()
         peerConnections.current.delete(id)
         setRemoteStreams(previous => {
@@ -57,7 +58,7 @@ export function useClassroomMedia({ socket, roomId, participants, currentUserId,
       }
     }
     return entry
-  }, [sendSignal])
+  }, [iceServers, sendSignal])
 
   const makeOffer = useCallback(async userId => {
     const entry = makePeer(userId)
@@ -78,8 +79,9 @@ export function useClassroomMedia({ socket, roomId, participants, currentUserId,
       return undefined
     }
 
-    const onSignal = async ({ senderId, signal } = {}) => {
-      if (!senderId || !signal) return
+    const onSignal = async ({ senderId, targetUserId, signal } = {}) => {
+      if (!senderId || !signal || String(senderId) === String(currentUserId)) return
+      if (targetUserId && String(targetUserId) !== String(currentUserId)) return
       const entry = makePeer(senderId)
       const connection = entry.connection
       try {
@@ -104,6 +106,21 @@ export function useClassroomMedia({ socket, roomId, participants, currentUserId,
 
     socket.on('rtc-signal', onSignal)
     const peers = participants.filter(participant => String(participant.id) !== String(currentUserId))
+    const activePeerIds = new Set(peers.map(participant => String(participant.id)))
+    const stalePeerIds = []
+    peerConnections.current.forEach(({ connection }, peerId) => {
+      if (activePeerIds.has(peerId)) return
+      connection.close()
+      peerConnections.current.delete(peerId)
+      stalePeerIds.push(peerId)
+    })
+    if (stalePeerIds.length) {
+      setRemoteStreams(previous => {
+        const next = { ...previous }
+        stalePeerIds.forEach(peerId => delete next[peerId])
+        return next
+      })
+    }
     peers.forEach(participant => {
       const peerId = String(participant.id)
       makePeer(peerId)

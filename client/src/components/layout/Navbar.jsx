@@ -194,12 +194,16 @@ function NavItem({ item }) {
   )
 }
 
-export default function Navbar() {
+export default function Navbar({ isHydrating = false }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { isAuthenticated, currentUser } = useSelector(state => state.user)
   const dispatch = useDispatch()
   const location = useLocation()
   const navigate = useNavigate()
+  const tokenIsRestoring = isHydrating && !!localStorage.getItem('token')
+  const visibleNavLinks = isAuthenticated || tokenIsRestoring
+    ? navLinks.filter(item => item.path !== '/')
+    : navLinks
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -221,7 +225,7 @@ export default function Navbar() {
 
           {/* Desktop Navigation - Center */}
           <div className="hidden lg:flex items-center gap-1 flex-1 px-8">
-            {navLinks.map(item => (
+            {visibleNavLinks.map(item => (
               <NavItem key={item.label} item={item} />
             ))}
           </div>
@@ -293,7 +297,7 @@ export default function Navbar() {
             className="lg:hidden bg-white border-t border-gray-200"
           >
             <div className="container-custom py-4 space-y-2">
-              {navLinks.map(item => (
+              {visibleNavLinks.map(item => (
                 <div key={item.label}>
                   {item.type === 'link' ? (
                     <Link

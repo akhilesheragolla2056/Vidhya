@@ -37,6 +37,61 @@ function requireParticipant(classroom, user) {
   return classroom.participants.some(participant => participant.userId === userId)
 }
 
+async function joinClassroom(classroom, user) {
+  const userId = userIdOf(user)
+  if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
+  if (classroom.scheduledAt && classroom.scheduledAt > new Date()) {
+    throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
+  }
+  if (requireParticipant(classroom, user)) {
+    if (classroom.status !== 'waiting') return classroom
+    return await Classroom.findOneAndUpdate(
+      { _id: classroom._id, status: 'waiting' },
+      { $set: { status: 'active', startedAt: classroom.startedAt || new Date() } },
+      { new: true }
+    ) || getClassroom(classroom._id)
+  }
+
+  // Reserve a seat atomically so two learners arriving together cannot exceed
+  // the configured room capacity or overwrite each other's participant list.
+  const joinedClassroom = await Classroom.findOneAndUpdate(
+    {
+      _id: classroom._id,
+      status: { $ne: 'ended' },
+      'participants.userId': { $ne: userId },
+      $expr: {
+        $lt: [
+          { $size: { $ifNull: ['$participants', []] } },
+          { $ifNull: ['$settings.maxParticipants', 100] },
+        ],
+      },
+    },
+    {
+      $push: {
+        participants: {
+          userId,
+          name: user.name || 'Learner',
+          avatar: user.avatar || null,
+          joinedAt: new Date(),
+        },
+      },
+      $set: {
+        status: 'active',
+        ...(classroom.status === 'waiting' ? { startedAt: classroom.startedAt || new Date() } : {}),
+      },
+    },
+    { new: true, runValidators: true }
+  )
+  if (joinedClassroom) return joinedClassroom
+
+  const latestClassroom = await getClassroom(classroom._id)
+  if (!latestClassroom || latestClassroom.status === 'ended') {
+    throw new ApiError(400, 'This session has ended')
+  }
+  if (requireParticipant(latestClassroom, user)) return latestClassroom
+  throw new ApiError(400, 'Classroom is full')
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const userId = userIdOf(req.user)
@@ -120,6 +175,7 @@ router.post('/join', async (req, res, next) => {
       classroom.participants = []
       classroom.messages = []
       classroom.whiteboard = ''
+      await classroom.save()
     }
     if (!classroom) throw new ApiError(404, 'Classroom not found')
     if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
@@ -127,16 +183,21 @@ router.post('/join', async (req, res, next) => {
       throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
     }
 
-    const alreadyJoined = requireParticipant(classroom, req.user)
-    if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
-      throw new ApiError(400, 'Classroom is full')
-    }
-    addClassroomParticipant(classroom, req.user)
-    if (classroom.status === 'waiting') {
+    if (classroom.isNew) {
+      addClassroomParticipant(classroom, req.user)
       classroom.status = 'active'
       classroom.startedAt = new Date()
+      try {
+        await classroom.save()
+      } catch (error) {
+        if (error.code !== 11000 || code !== SAMPLE_CLASSROOM_CODE) throw error
+        const existingSampleClassroom = await Classroom.findOne({ code })
+        if (!existingSampleClassroom) throw error
+        classroom = await joinClassroom(existingSampleClassroom, req.user)
+      }
+    } else {
+      classroom = await joinClassroom(classroom, req.user)
     }
-    await classroom.save()
 
     res.json({
       success: true,
@@ -149,23 +210,9 @@ router.post('/join', async (req, res, next) => {
 
 router.post('/:id/join', async (req, res, next) => {
   try {
-    const classroom = await getClassroom(req.params.id)
+    let classroom = await getClassroom(req.params.id)
     if (!classroom) throw new ApiError(404, 'Classroom not found')
-    if (classroom.status === 'ended') throw new ApiError(400, 'This session has ended')
-    if (classroom.scheduledAt && classroom.scheduledAt > new Date()) {
-      throw new ApiError(400, 'This lesson has not reached its scheduled start time yet.')
-    }
-
-    const alreadyJoined = requireParticipant(classroom, req.user)
-    if (!alreadyJoined && classroom.participants.length >= classroom.settings.maxParticipants) {
-      throw new ApiError(400, 'Classroom is full')
-    }
-    addClassroomParticipant(classroom, req.user)
-    if (classroom.status === 'waiting') {
-      classroom.status = 'active'
-      classroom.startedAt = new Date()
-    }
-    await classroom.save()
+    classroom = await joinClassroom(classroom, req.user)
     res.json({ success: true, data: classroom })
   } catch (error) {
     next(error)

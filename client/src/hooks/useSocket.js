@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { io } from 'socket.io-client'
 import { API_BASE_URL } from '../services/api'
@@ -29,6 +29,8 @@ export function useSocket(roomId) {
   const dispatch = useDispatch()
   const socketRef = useRef(null)
   const { isConnected } = useSelector((state) => state.classroom)
+  const [connectionError, setConnectionError] = useState('')
+  const [iceServers, setIceServers] = useState([{ urls: 'stun:stun.l.google.com:19302' }])
   const user = useSelector((state) => state.user.currentUser)
   const userId = user?._id || user?.id
 
@@ -47,13 +49,24 @@ export function useSocket(roomId) {
     dispatch(joinRoom(roomId))
     dispatch(setCurrentUserId(userId))
     dispatch(setConnected(false))
+    setConnectionError('')
+    setIceServers([{ urls: 'stun:stun.l.google.com:19302' }])
 
     socket.on('connect', () => {
-      socket.emit('join-room', { roomId }, response => {
+      socket.timeout(5000).emit('join-room', { roomId }, (error, response) => {
+        if (error) {
+          setConnectionError('The server did not confirm this classroom connection. Please reconnect.')
+          return
+        }
         if (!response?.success) {
+          setConnectionError(response?.message || 'Could not join the classroom connection.')
           socket.disconnect()
           return
         }
+        if (Array.isArray(response.iceServers) && response.iceServers.length) {
+          setIceServers(response.iceServers)
+        }
+        setConnectionError('')
         dispatch(setConnected(true))
       })
     })
@@ -62,8 +75,9 @@ export function useSocket(roomId) {
       dispatch(setConnected(false))
     })
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', error => {
       dispatch(setConnected(false))
+      setConnectionError(error?.message || 'Could not connect to the classroom server.')
     })
 
     socket.on('room-participants', (participants) => {
@@ -172,6 +186,8 @@ export function useSocket(roomId) {
 
   return {
     isConnected,
+    connectionError,
+    iceServers,
     sendMessage,
     toggleHand,
     sendWhiteboardUpdate,

@@ -1,4 +1,5 @@
 import { notifyLearningProgressUpdated } from './learningProgressEvents'
+import api from '../services/api'
 
 /**
  * Progress Tracking Utility for Vidhya Learning Platform
@@ -7,17 +8,140 @@ import { notifyLearningProgressUpdated } from './learningProgressEvents'
 
 export const PROGRESS_STORAGE_KEY = 'vidhya_course_progress'
 
-/**
- * Get all course progress from localStorage
- */
-export function getAllProgress() {
+const progressSyncTimers = new Map()
+const progressSyncMetadata = new Map()
+
+function getTokenUserId() {
   try {
-    const data = localStorage.getItem(PROGRESS_STORAGE_KEY)
+    const token = localStorage.getItem('token')
+    if (!token) return null
+    const encodedPayload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(encodedPayload.padEnd(Math.ceil(encodedPayload.length / 4) * 4, '=')))
+    return payload.id || payload.userId || payload.sub || null
+  } catch {
+    return null
+  }
+}
+
+export function getProgressStorageKey() {
+  const userId = getTokenUserId()
+  return userId ? `${PROGRESS_STORAGE_KEY}:${userId}` : PROGRESS_STORAGE_KEY
+}
+
+export function setCourseProgressMetadata(courseId, metadata = {}) {
+  progressSyncMetadata.set(courseId, { ...progressSyncMetadata.get(courseId), ...metadata })
+}
+
+function readProgressFrom(key) {
+  try {
+    const data = localStorage.getItem(key)
     return data ? JSON.parse(data) : {}
   } catch (error) {
     console.error('Error reading progress:', error)
     return {}
   }
+}
+
+function writeAllProgress(allProgress) {
+  localStorage.setItem(getProgressStorageKey(), JSON.stringify(allProgress))
+}
+
+function scheduleProgressSync(courseId) {
+  const ownerId = getTokenUserId()
+  const metadata = progressSyncMetadata.get(courseId)
+  if (!ownerId || !metadata) return
+  const progress = getCourseProgress(courseId)
+  const hasLearningActivity = Boolean(
+    progress.startedAt || progress.lastAccessed || progress.activeSeconds ||
+    progress.completedLessons.length || progress.notesRead.length ||
+    Object.keys(progress.mcqScores).length || Object.keys(progress.videoProgress).length
+  )
+  if (!hasLearningActivity) return
+  const timerKey = `${ownerId}:${courseId}`
+  const existingTimer = progressSyncTimers.get(timerKey)
+  if (existingTimer) window.clearTimeout(existingTimer)
+  progressSyncTimers.set(timerKey, window.setTimeout(() => {
+    progressSyncTimers.delete(timerKey)
+    if (getTokenUserId() !== ownerId) return
+    void syncCourseProgress(courseId).catch(() => {})
+  }, 700))
+}
+
+export async function syncCourseProgress(courseId, metadata = {}) {
+  const ownerId = getTokenUserId()
+  if (!ownerId) return null
+  const timerKey = `${ownerId}:${courseId}`
+  const pendingTimer = progressSyncTimers.get(timerKey)
+  if (pendingTimer) window.clearTimeout(pendingTimer)
+  progressSyncTimers.delete(timerKey)
+  if (Object.keys(metadata).length) setCourseProgressMetadata(courseId, metadata)
+  const details = progressSyncMetadata.get(courseId) || {}
+  const progress = getCourseProgress(courseId)
+  const payload = {
+    ...progress,
+    courseId,
+    courseTitle: details.courseTitle || '',
+    category: details.category || '',
+    totalLessons: details.totalLessons || details.lessonIds?.length || 0,
+    lessonIds: details.lessonIds || [],
+  }
+  const response = await api.put(`/progress/learning/${encodeURIComponent(courseId)}`, payload)
+  return response.data?.data || null
+}
+
+export function importProgressRecords(records = []) {
+  const allProgress = getAllProgress()
+  let changed = false
+  for (const record of records) {
+    if (!record?.courseId) continue
+    const remote = {
+      courseId: record.courseId,
+      completedLessons: Array.isArray(record.completedLessons) ? record.completedLessons : [],
+      videoProgress: record.videoProgress || {},
+      completedMCQs: Array.isArray(record.completedMCQs) ? record.completedMCQs : [],
+      mcqScores: record.mcqScores || {},
+      notesRead: Array.isArray(record.notesRead) ? record.notesRead : [],
+      status: record.status || 'not-started',
+      lastAccessed: record.lastAccessed || null,
+      startedAt: record.startedAt || null,
+      completedAt: record.completedAt || null,
+      overallProgress: Number(record.overallProgress) || 0,
+      activeSeconds: Math.max(0, Number(record.activeSeconds) || 0),
+    }
+    const local = allProgress[record.courseId]
+    const localTime = local?.lastAccessed ? new Date(local.lastAccessed).getTime() : 0
+    const remoteTime = remote.lastAccessed ? new Date(remote.lastAccessed).getTime() : 0
+    if (local && localTime >= remoteTime) {
+      continue
+    }
+    allProgress[record.courseId] = remote
+    changed = true
+  }
+  if (changed) {
+    writeAllProgress(allProgress)
+    notifyLearningProgressUpdated({ activity: 'progress-restored' })
+  }
+  return allProgress
+}
+
+/**
+ * Get all course progress from localStorage
+ */
+export function getAllProgress() {
+  const key = getProgressStorageKey()
+  const scopedProgress = readProgressFrom(key)
+  if (key === PROGRESS_STORAGE_KEY) return scopedProgress
+
+  // Move progress saved before account-based sync onto the first signed-in
+  // account, then remove the shared copy so another account cannot inherit it.
+  const legacyProgress = readProgressFrom(PROGRESS_STORAGE_KEY)
+  if (Object.keys(legacyProgress).length) {
+    const migratedProgress = { ...legacyProgress, ...scopedProgress }
+    localStorage.setItem(key, JSON.stringify(migratedProgress))
+    localStorage.removeItem(PROGRESS_STORAGE_KEY)
+    return migratedProgress
+  }
+  return scopedProgress
 }
 
 /**
@@ -44,7 +168,8 @@ export function getCourseProgress(courseId) {
 
 function saveProgress(allProgress, courseId, courseProgress, activity) {
   allProgress[courseId] = courseProgress
-  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
+  writeAllProgress(allProgress)
+  scheduleProgressSync(courseId)
   if (activity !== 'learning-time') notifyLearningProgressUpdated({ courseId, activity })
   return courseProgress
 }
@@ -188,7 +313,7 @@ export function calculateProgress(courseId, lessonIdsOrCount) {
 
   const allProgress = getAllProgress()
   allProgress[courseId] = courseProgress
-  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
+  writeAllProgress(allProgress)
 
   return percentage
 }
@@ -231,7 +356,7 @@ export function areNotesRead(courseId, lessonId) {
 export function resetCourseProgress(courseId) {
   const allProgress = getAllProgress()
   delete allProgress[courseId]
-  localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allProgress))
+  writeAllProgress(allProgress)
   notifyLearningProgressUpdated({ courseId, activity: 'progress-reset' })
 }
 

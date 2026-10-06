@@ -11,8 +11,9 @@ const certificateSchema = new mongoose.Schema(
     course: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Course',
-      required: true,
     },
+    catalogCourseId: { type: String, trim: true },
+    catalogCourseTitle: { type: String, trim: true, maxlength: 200 },
     certificateNumber: {
       type: String,
       unique: true,
@@ -73,5 +74,9 @@ certificateSchema.pre('validate', function () {
 
 // Index for quick queries
 certificateSchema.index({ user: 1, course: 1 })
+certificateSchema.index(
+  { user: 1, catalogCourseId: 1 },
+  { unique: true, partialFilterExpression: { catalogCourseId: { $type: 'string' } } }
+)
 
 export default mongoose.model('Certificate', certificateSchema)

@@ -223,7 +223,7 @@ function StudentDashboard() {
       void queryClient.invalidateQueries({ queryKey: ['dashboardCertificates', currentUserId] })
     }
     const refreshForOtherTab = event => {
-      if (!event.key || event.key === PROGRESS_STORAGE_KEY) refreshDashboard()
+      if (!event.key || event.key.startsWith(PROGRESS_STORAGE_KEY)) refreshDashboard()
     }
 
     window.addEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refreshDashboard)

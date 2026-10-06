@@ -1,15 +1,20 @@
 import express from 'express'
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
 import { HumanMessage, SystemMessage, AIMessage } from '@langchain/core/messages'
+import { ApiError } from '../middleware/errorHandler.js'
 
 const router = express.Router()
 
 // Initialize Gemini chat model
 const getChatModel = () => {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!apiKey) {
+    throw new ApiError(503, 'AI tutor is not configured on the server. Set GEMINI_API_KEY.')
+  }
+
   return new ChatGoogleGenerativeAI({
-    model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-    temperature: 0.7,
-    apiKey: process.env.GEMINI_API_KEY,
+    model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+    apiKey,
   })
 }
 

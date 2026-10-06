@@ -90,7 +90,7 @@ function Profile() {
       }
     }
     const storageRefresh = event => {
-      if (!event.key || event.key === PROGRESS_STORAGE_KEY) refresh()
+      if (!event.key || event.key.startsWith(PROGRESS_STORAGE_KEY)) refresh()
     }
     window.addEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refresh)
     window.addEventListener('storage', storageRefresh)

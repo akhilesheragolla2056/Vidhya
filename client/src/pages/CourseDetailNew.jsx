@@ -21,6 +21,7 @@ import TheoryNotes from '../components/course/TheoryNotes'
 import MCQQuiz from '../components/course/MCQQuiz'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import downloadCourseCertificate from '../utils/downloadCourseCertificate'
+import api from '../services/api'
 
 import { getCourseById } from '../data/coursesData'
 import {
@@ -33,6 +34,9 @@ import {
   areNotesRead,
   getMCQScore,
   getVideoProgress,
+  importProgressRecords,
+  setCourseProgressMetadata,
+  syncCourseProgress,
 } from '../utils/progressTracker'
 
 /**
@@ -49,19 +53,46 @@ export default function CourseDetailNew() {
   const [activeTab, setActiveTab] = useState('video')
   const [progress, setProgress] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [certificateError, setCertificateError] = useState('')
+  const currentUserId = currentUser?._id || currentUser?.id
 
   // Load course data
   useEffect(() => {
+    let active = true
     const courseData = getCourseById(id)
     if (courseData) {
+      setCourseProgressMetadata(id, {
+        courseTitle: courseData.title,
+        category: courseData.category,
+        totalLessons: courseData.playlist.length,
+        lessonIds: courseData.playlist.map(lesson => lesson.id),
+      })
       setCourse(courseData)
       const progressData = getCourseProgress(id)
       setProgress(progressData)
       setLoading(false)
+
+      if (localStorage.getItem('token')) {
+        api.get(`/progress/learning/${encodeURIComponent(id)}`).then(response => {
+          if (!active) return
+          const remote = response.data?.data
+          if (remote) importProgressRecords([remote])
+          setProgress(getCourseProgress(id))
+          if (!remote && (progressData.startedAt || progressData.lastAccessed || progressData.completedLessons.length)) {
+            void syncCourseProgress(id, {
+              courseTitle: courseData.title,
+              category: courseData.category,
+              totalLessons: courseData.playlist.length,
+              lessonIds: courseData.playlist.map(lesson => lesson.id),
+            }).catch(() => {})
+          }
+        }).catch(() => {})
+      }
     } else {
       setLoading(false)
     }
-  }, [id])
+    return () => { active = false }
+  }, [id, currentUserId])
 
   // Update progress percentage whenever progress changes
   useEffect(() => {
@@ -116,6 +147,31 @@ export default function CourseDetailNew() {
   const handleMCQComplete = (lessonId, score, total) => {
     const updatedProgress = saveMCQResults(id, lessonId, score, total)
     setProgress({ ...updatedProgress })
+    void syncCourseProgress(id, {
+      courseTitle: course.title,
+      category: course.category,
+      totalLessons,
+      lessonIds: course.playlist.map(lesson => lesson.id),
+    }).catch(() => {})
+  }
+
+  const handleCertificateDownload = async () => {
+    setCertificateError('')
+    try {
+      await syncCourseProgress(id, {
+        courseTitle: course.title,
+        category: course.category,
+        totalLessons,
+        lessonIds: course.playlist.map(lesson => lesson.id),
+      })
+      downloadCourseCertificate({
+        learnerName: currentUser?.name || currentUser?.email?.split('@')[0] || 'Learner',
+        courseTitle: course.title,
+        completedAt: progress?.completedAt || new Date(),
+      })
+    } catch {
+      setCertificateError('Your certificate could not be saved to your account. Check your connection and try again.')
+    }
   }
 
   const handleNextLesson = () => {
@@ -473,11 +529,7 @@ export default function CourseDetailNew() {
                 {certificateUnlocked && (
                   <button
                     type="button"
-                    onClick={() => downloadCourseCertificate({
-                      learnerName: currentUser?.name || currentUser?.email?.split('@')[0] || 'Learner',
-                      courseTitle: course.title,
-                      completedAt: progress?.completedAt || new Date(),
-                    })}
+                    onClick={() => void handleCertificateDownload()}
                     className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-white transition-colors hover:bg-primary-dark"
                   >
                     <Award size={18} />
@@ -485,6 +537,7 @@ export default function CourseDetailNew() {
                   </button>
                 )}
               </div>
+              {certificateError && <p role="alert" className="mt-3 text-sm text-red-700">{certificateError}</p>}
             </section>
           </div>
         </div>

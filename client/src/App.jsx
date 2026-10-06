@@ -12,6 +12,13 @@ import { ProtectedRoute, PublicRoute } from './components/routing/RouteGuards'
 
 // Store actions
 import { fetchProfile } from './store/slices/userSlice'
+import api from './services/api'
+import {
+  getCourseProgress,
+  importProgressRecords,
+  setCourseProgressMetadata,
+  syncCourseProgress,
+} from './utils/progressTracker'
 
 // Hooks
 import { useNetworkStatus } from './hooks/useNetworkStatus'
@@ -76,6 +83,42 @@ function App() {
     }
   }, [currentUser, dispatch, isAuthenticated])
 
+  // Restore this account's catalogue progress on every device, then push any
+  // newer offline progress saved locally before the account was connected.
+  useEffect(() => {
+    const userId = currentUser?._id || currentUser?.id
+    if (!userId || !localStorage.getItem('token')) return undefined
+    let active = true
+    api.get('/progress/learning').then(response => import('./data/coursesData').then(({ coursesData }) => {
+      if (!active) return
+      const records = Array.isArray(response.data?.data) ? response.data.data : []
+      coursesData.forEach(course => setCourseProgressMetadata(course.id, {
+        courseTitle: course.title,
+        category: course.category,
+        totalLessons: course.playlist.length,
+        lessonIds: course.playlist.map(lesson => lesson.id),
+      }))
+      importProgressRecords(records)
+      const serverByCourse = new Map(records.map(record => [record.courseId, record]))
+      coursesData.forEach(course => {
+        const local = getCourseProgress(course.id)
+        if (!local.startedAt && !local.lastAccessed && !local.activeSeconds && !local.completedLessons.length) return
+        const server = serverByCourse.get(course.id)
+        const localTime = local.lastAccessed ? new Date(local.lastAccessed).getTime() : 0
+        const serverTime = server?.lastAccessed ? new Date(server.lastAccessed).getTime() : 0
+        if (!server || localTime > serverTime) {
+          void syncCourseProgress(course.id, {
+            courseTitle: course.title,
+            category: course.category,
+            totalLessons: course.playlist.length,
+            lessonIds: course.playlist.map(lesson => lesson.id),
+          }).catch(() => {})
+        }
+      })
+    })).catch(() => {})
+    return () => { active = false }
+  }, [currentUser?._id, currentUser?.id])
+
   const showGlobalSpinner = isHydrating || isLoading
 
   return (
@@ -92,7 +135,7 @@ function App() {
         </div>
       )}
 
-      <Navbar />
+      <Navbar isHydrating={isHydrating} />
 
       <main className="flex-1">
         <Suspense fallback={<LoadingSpinner />}>
@@ -104,7 +147,7 @@ function App() {
           <Routes>
             <Route
               path="/"
-              element={<Landing />}
+              element={isHydrating ? null : isAuthenticated ? <ProtectedRoute><Dashboard /></ProtectedRoute> : <Landing />}
             />
             <Route path="/learning" element={<LearningShowcase />} />
             <Route path="/immersive-videos" element={<ImmersiveVideos />} />

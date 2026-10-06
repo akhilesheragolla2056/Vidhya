@@ -17,8 +17,9 @@ import {
   Play,
 } from 'lucide-react'
 
-import { coursesData } from '../data/coursesData'
-import { getCourseProgress, calculateProgress } from '../utils/progressTracker'
+import { coursesData, coursePhotoIds } from '../data/coursesData'
+import { getCourseProgress, calculateProgress, PROGRESS_STORAGE_KEY } from '../utils/progressTracker'
+import { LEARNING_PROGRESS_UPDATED_EVENT } from '../utils/learningProgressEvents'
 import { coursesAPI } from '../services/api'
 
 const arVrCourse = coursesData.find(course => course.id === 'arvr-science-foundations')
@@ -43,7 +44,7 @@ export default function CoursesNew() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || 'All')
   const [selectedDifficulty, setSelectedDifficulty] = useState('All')
-  const [coursesWithProgress] = useState(loadLocalCourses)
+  const [coursesWithProgress, setCoursesWithProgress] = useState(loadLocalCourses)
   const { data: publishedCourses = [], isError: liveCoursesError } = useQuery({
     queryKey: ['published-courses'],
     queryFn: async () => {
@@ -52,30 +53,75 @@ export default function CoursesNew() {
     },
   })
 
-  const liveCourses = publishedCourses.map(course => ({
-    id: course._id,
-    href: `/courses/${course._id}`,
-    title: course.title,
-    category: course.category,
-    description: course.description,
-    instructor: course.instructor?.name || 'Course team',
-    instructorAvatar: course.instructor?.avatar,
-    difficulty: course.level || 'Beginner',
-    duration: course.duration || 'Self-paced',
-    totalLessons:
-      course.lessonsCount ||
-      course.modules?.reduce((count, module) => count + (module.lessons?.length || 0), 0) ||
-      0,
-    thumbnail: course.thumbnail,
-    progress: 0,
-    completedLessons: 0,
-    skills: course.whatYouWillLearn || [],
-  }))
+  const liveCatalogPhotoIds = [
+    'photo-1500530855697-b586d89ba3ee', 'photo-1499209974431-9dddcece7f88',
+    'photo-1521737711867-e3b97375f902', 'photo-1497366754035-f200968a6e72',
+    'photo-1497366811353-6870744d04b2', 'photo-1600880292203-757bb62b4baf',
+    'photo-1600880292089-90a7e086ee0c', 'photo-1553877522-43269d4ea984',
+    'photo-1522071820081-009f0129c71c', 'photo-1504384308090-c894fdcc538d',
+    'photo-1523580846011-d3a5bc25702b', 'photo-1513258496099-48168024aec0',
+    'photo-1517486808906-6ca8b3f04846', 'photo-1511632765486-a01980e01a18',
+    'photo-1531206715517-5c0ba140b2b8', 'photo-1531058020387-3be344556be6',
+  ]
+  const usedPhotoIds = new Set([
+    ...coursePhotoIds,
+    ...coursesWithProgress.map(course => course.thumbnail?.match(/images\.unsplash\.com\/([^?]+)/)?.[1]),
+  ])
+  let replacementPhotoIndex = 0
+  const liveCourses = publishedCourses.map(course => {
+    let thumbnail = course.thumbnail
+    const originalPhotoId = thumbnail?.match(/images\.unsplash\.com\/([^?]+)/)?.[1]
+    if (!originalPhotoId || usedPhotoIds.has(originalPhotoId)) {
+      while (replacementPhotoIndex < liveCatalogPhotoIds.length && usedPhotoIds.has(liveCatalogPhotoIds[replacementPhotoIndex])) {
+        replacementPhotoIndex += 1
+      }
+      if (replacementPhotoIndex < liveCatalogPhotoIds.length) {
+        const photoId = liveCatalogPhotoIds[replacementPhotoIndex]
+        replacementPhotoIndex += 1
+        thumbnail = `https://images.unsplash.com/${photoId}?w=800&h=450&fit=crop&auto=format&q=80`
+      }
+    }
+    if (originalPhotoId) usedPhotoIds.add(originalPhotoId)
+    const replacementPhotoId = thumbnail?.match(/images\.unsplash\.com\/([^?]+)/)?.[1]
+    if (replacementPhotoId) usedPhotoIds.add(replacementPhotoId)
+    return {
+      id: course._id,
+      href: `/courses/${course._id}`,
+      title: course.title,
+      category: course.category,
+      description: course.description,
+      instructor: course.instructor?.name || 'Course team',
+      instructorAvatar: course.instructor?.avatar,
+      difficulty: course.level || 'Beginner',
+      duration: course.duration || 'Self-paced',
+      totalLessons:
+        course.lessonsCount ||
+        course.modules?.reduce((count, module) => count + (module.lessons?.length || 0), 0) ||
+        0,
+      thumbnail,
+      progress: 0,
+      completedLessons: 0,
+      skills: course.whatYouWillLearn || [],
+    }
+  })
   const catalogCourses = [...coursesWithProgress, ...liveCourses]
 
   useEffect(() => {
     setSelectedCategory(searchParams.get('category') || 'All')
   }, [searchParams])
+
+  useEffect(() => {
+    const refreshProgress = () => setCoursesWithProgress(loadLocalCourses())
+    const refreshOtherTab = event => {
+      if (!event.key || event.key.startsWith(PROGRESS_STORAGE_KEY)) refreshProgress()
+    }
+    window.addEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refreshProgress)
+    window.addEventListener('storage', refreshOtherTab)
+    return () => {
+      window.removeEventListener(LEARNING_PROGRESS_UPDATED_EVENT, refreshProgress)
+      window.removeEventListener('storage', refreshOtherTab)
+    }
+  }, [])
 
   // Filter courses
   const filteredCourses = catalogCourses.filter(course => {

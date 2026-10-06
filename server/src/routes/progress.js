@@ -8,10 +8,54 @@ import VideoProgress from '../models/VideoProgress.js'
 import Certificate from '../models/Certificate.js'
 import Course from '../models/Course.js'
 import User from '../models/User.js'
+import LearningProgress from '../models/LearningProgress.js'
 import { authMiddleware, requireRole } from '../middleware/auth.js'
 import { ApiError } from '../middleware/errorHandler.js'
 
 const router = express.Router()
+
+const normalizeStringList = value => Array.isArray(value)
+  ? [...new Set(value.filter(item => typeof item === 'string' && item.length <= 180))].slice(0, 500)
+  : []
+
+const normalizeScoreMap = value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).slice(0, 500).flatMap(([lessonId, result]) => {
+    if (lessonId.length > 180 || !result || typeof result !== 'object') return []
+    const totalQuestions = Math.min(200, Math.max(0, Math.floor(Number(result.totalQuestions) || 0)))
+    const score = Math.min(totalQuestions, Math.max(0, Math.floor(Number(result.score) || 0)))
+    return [[lessonId, {
+      score,
+      totalQuestions,
+      percentage: totalQuestions ? Math.round((score / totalQuestions) * 100) : 0,
+      attemptedAt: result.attemptedAt && Number.isFinite(new Date(result.attemptedAt).getTime())
+        ? new Date(result.attemptedAt)
+        : new Date(),
+    }]]
+  }))
+}
+
+const normalizeVideoProgress = value => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(Object.entries(value).slice(0, 500).flatMap(([lessonId, item]) => {
+    if (lessonId.length > 180 || !item || typeof item !== 'object') return []
+    return [[lessonId, {
+      watched: item.watched === true,
+      percentage: Math.min(100, Math.max(0, Number(item.percentage) || 0)),
+      watchedAt: item.watchedAt && Number.isFinite(new Date(item.watchedAt).getTime())
+        ? new Date(item.watchedAt)
+        : undefined,
+    }]]
+  }))
+}
+
+function certificateView(certificate) {
+  const result = certificate.toObject ? certificate.toObject() : certificate
+  if (!result.course && result.catalogCourseId) {
+    result.course = { _id: result.catalogCourseId, title: result.catalogCourseTitle || 'Course' }
+  }
+  return result
+}
 
 function mergeWatchedRanges(ranges, start, end) {
   if (end <= start) return ranges
@@ -541,6 +585,104 @@ router.get('/user/:userId', authMiddleware, async (req, res, next) => {
   }
 })
 
+// Account-owned progress for the bundled course catalogue. These course IDs
+// are stable slugs rather than Mongo Course ObjectIds.
+router.get('/learning', authMiddleware, async (req, res, next) => {
+  try {
+    const progress = await LearningProgress.find({ user: req.user._id })
+      .sort({ lastAccessed: -1 })
+      .lean()
+    res.json({ success: true, data: progress })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.get('/learning/:courseId', authMiddleware, async (req, res, next) => {
+  try {
+    const progress = await LearningProgress.findOne({
+      user: req.user._id,
+      courseId: req.params.courseId,
+    }).lean()
+    res.json({ success: true, data: progress })
+  } catch (error) {
+    next(error)
+  }
+})
+
+router.put('/learning/:courseId', authMiddleware, async (req, res, next) => {
+  try {
+    const { courseId } = req.params
+    if (!/^[a-zA-Z0-9_-]{1,160}$/.test(courseId)) {
+      throw new ApiError(400, 'Invalid course ID')
+    }
+    const lessonIds = normalizeStringList(req.body.lessonIds)
+    const totalLessons = Math.min(500, Math.max(0, Math.floor(Number(req.body.totalLessons) || lessonIds.length)))
+    const mcqScores = normalizeScoreMap(req.body.mcqScores)
+    const passedLessons = lessonIds.filter(lessonId => Number(mcqScores[lessonId]?.percentage) >= 60)
+    const overallProgress = totalLessons
+      ? Math.round((Math.min(passedLessons.length, totalLessons) / totalLessons) * 100)
+      : 0
+    const now = new Date()
+    const requestedStatus = overallProgress === 100
+      ? 'completed'
+      : (req.body.startedAt || req.body.lastAccessed || passedLessons.length ? 'in-progress' : 'not-started')
+    const toDate = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value) : undefined
+    const update = {
+      courseTitle: typeof req.body.courseTitle === 'string' ? req.body.courseTitle.trim().slice(0, 200) : '',
+      category: typeof req.body.category === 'string' ? req.body.category.trim().slice(0, 100) : '',
+      totalLessons,
+      completedLessons: passedLessons,
+      videoProgress: normalizeVideoProgress(req.body.videoProgress),
+      completedMCQs: passedLessons,
+      mcqScores,
+      notesRead: normalizeStringList(req.body.notesRead),
+      status: requestedStatus,
+      lastAccessed: toDate(req.body.lastAccessed) || now,
+      startedAt: toDate(req.body.startedAt) || (requestedStatus !== 'not-started' ? now : undefined),
+      completedAt: overallProgress === 100 ? toDate(req.body.completedAt) || now : undefined,
+      overallProgress,
+      activeSeconds: Math.min(100_000_000, Math.max(0, Number(req.body.activeSeconds) || 0)),
+    }
+
+    const progress = await LearningProgress.findOneAndUpdate(
+      { user: req.user._id, courseId },
+      { $set: update, $setOnInsert: { user: req.user._id, courseId } },
+      { upsert: true, new: true, runValidators: true }
+    )
+
+    let certificate = null
+    if (requestedStatus === 'completed' && totalLessons > 0 && passedLessons.length >= totalLessons) {
+      const testScore = Math.round(
+        passedLessons.reduce((sum, lessonId) => sum + Number(mcqScores[lessonId].percentage), 0) / totalLessons
+      )
+      certificate = await Certificate.findOne({ user: req.user._id, catalogCourseId: courseId })
+      if (!certificate) {
+        try {
+          certificate = await Certificate.create({
+            user: req.user._id,
+            catalogCourseId: courseId,
+            catalogCourseTitle: update.courseTitle || courseId,
+            completionDate: update.completedAt,
+            videosCompletionPercentage: overallProgress,
+            testScore,
+            testPassingScore: 60,
+            totalLearningHours: Number((update.activeSeconds / 3600).toFixed(2)),
+            verificationCode: randomBytes(8).toString('hex').toUpperCase(),
+          })
+        } catch (error) {
+          if (error.code !== 11000) throw error
+          certificate = await Certificate.findOne({ user: req.user._id, catalogCourseId: courseId })
+        }
+      }
+    }
+
+    res.json({ success: true, data: progress, certificate: certificate ? certificateView(certificate) : null })
+  } catch (error) {
+    next(error)
+  }
+})
+
 // ==================== CERTIFICATES ====================
 
 // @route   POST /api/certificates/generate
@@ -653,7 +795,7 @@ router.get('/user', authMiddleware, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: certificates,
+      data: certificates.map(certificateView),
     })
   } catch (error) {
     next(error)
@@ -669,7 +811,7 @@ router.get('/certificates/user', authMiddleware, async (req, res, next) => {
       .populate('course', 'title category thumbnail')
       .sort({ issueDate: -1 })
 
-    res.json({ success: true, data: certificates })
+    res.json({ success: true, data: certificates.map(certificateView) })
   } catch (error) {
     next(error)
   }
@@ -691,7 +833,7 @@ router.get('/:certificateId', async (req, res, next) => {
 
     res.json({
       success: true,
-      data: certificate,
+      data: certificateView(certificate),
     })
   } catch (error) {
     next(error)
